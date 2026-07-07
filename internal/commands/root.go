@@ -1136,7 +1136,7 @@ func migrateLegacyToken(profileName string) {
 // preserved only when the caller passes an empty string (meaning
 // "keep whatever is there"), and Extra entries are preserved unless
 // explicitly replaced.
-func ensureProfile(name, baseURL, _ string) {
+func ensureProfile(name, baseURL, defaultProjectID string) {
 	if profiles == nil {
 		return
 	}
@@ -1154,6 +1154,11 @@ func ensureProfile(name, baseURL, _ string) {
 	if existing != nil {
 		for k, v := range existing.Extra {
 			extra[k] = v
+		}
+	}
+	if defaultProjectID != "" {
+		if b, err := json.Marshal(defaultProjectID); err == nil {
+			extra["default_project_id"] = b
 		}
 	}
 	p := &profile.Profile{

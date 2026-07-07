@@ -5,21 +5,10 @@
 > authentication.rb`, `config/routes.rb`, views `*.json.jbuilder`,
 > `db/schema.rb`.
 
-## ⚠️ Gaps conhecidos (app-side) — verificado em 07/07/2026
-
-O Bearer token só autentica quando `request.format.json?`
-(`authentication.rb:110`). Consequência: **hoje o token NÃO funciona** em:
-
-1. **`GET /reports/export.csv|.xlsx`** — formato csv/xlsx ⇒ bearer nem é
-   tentado ⇒ redirect pro login. O comentário em `authentication.rb:27` mostra
-   que a intenção existe ("a futura rota de export usam isso"), mas o gate não
-   foi estendido. **Pendência no app** antes de `ponto export` existir.
-2. **Archival** (`POST|DELETE /{clients,projects,tasks,tags}/:id/archival`) —
-   controllers só respondem HTML/Turbo. Q73 pede superfície JSON total;
-   **pendência no app** antes de `ponto client archive` etc. existirem.
-
-O CLI v0 fica com o que funciona hoje: timer, time_entries (CRUD + split +
-duplicate), clients/projects/tasks/tags (CRUD), default project.
+> **Histórico**: os gaps de Bearer identificados em 07/07 (archival HTML-only
+> e export fora do gate) foram RESOLVIDOS no app no mesmo dia. O gate aceita
+> json|csv|xlsx e os 4 archivals respondem JSON — cobertos por
+> `test/integration/bearer_archivals_and_exports_test.rb`.
 
 ## 1. Autenticação
 
@@ -31,9 +20,10 @@ Accept: application/json
 Content-Type: application/json   # em POST/PATCH com body
 ```
 
-A auth Bearer só é tentada quando (`authentication.rb:109–111`):
-`request.format.json?` **e** o header `Authorization` contém `"Bearer"`.
-CSRF é dispensado para Bearer JSON (`request_forgery_protection.rb:22`).
+A auth Bearer é tentada quando (`authentication.rb:110–117`): o formato do
+request é **json, csv ou xlsx** (csv/xlsx pro export) **e** o header
+`Authorization` contém `"Bearer"`. CSRF é dispensado para Bearer
+(`request_forgery_protection.rb:22`).
 
 ### Modelo `AccessToken` (`app/models/access_token.rb`)
 
@@ -195,7 +185,9 @@ Shape: `{id, name, rate_cents, currency, note, archived_at, created_at, updated_
 - **`PATCH /clients/:id`** → 200 | 422.
 - **`DELETE /clients/:id`** → 204 | 422 se tiver projetos
   (`restrict_with_error`).
-- **Archival**: HTML-only hoje (ver Gaps).
+- **Archival**: `POST /…/:id/archival` arquiva, `DELETE` desarquiva — ambos
+  respondem 200 com o JSON do recurso atualizado (mesmo shape do show).
+  Token `read` → 401; recurso alheio → 404. Idempotentes.
 
 ## 6. Projects
 
@@ -227,7 +219,9 @@ Cascata (`project.rb:61–80`): `effective_rate_cents` = projeto ?? cliente;
 - **`DELETE /projects/:id`** → 204 (tasks cascateiam).
 - **`POST /projects/:id/default`** → 201 `{"default_project_id": 7}`.
 - **`DELETE /projects/:id/default`** → 204 (idempotente).
-- **Archival**: HTML-only hoje (ver Gaps).
+- **Archival**: `POST /…/:id/archival` arquiva, `DELETE` desarquiva — ambos
+  respondem 200 com o JSON do recurso atualizado (mesmo shape do show).
+  Token `read` → 401; recurso alheio → 404. Idempotentes.
 
 ## 7. Tasks (aninhadas em project; shallow p/ show/update/destroy)
 
@@ -239,7 +233,9 @@ Shape: `{id, name, project_id, archived_at, created_at, updated_at}`.
   `{"task": {"name": "Infra"}}`. Nome único por PROJETO (inclui arquivadas).
 - **`PATCH /tasks/:id`** → 200 | 422.
 - **`DELETE /tasks/:id`** → 204.
-- **Archival**: HTML-only hoje (ver Gaps).
+- **Archival**: `POST /…/:id/archival` arquiva, `DELETE` desarquiva — ambos
+  respondem 200 com o JSON do recurso atualizado (mesmo shape do show).
+  Token `read` → 401; recurso alheio → 404. Idempotentes.
 
 ## 8. Tags
 
@@ -250,13 +246,17 @@ Shape: `{id, name, archived_at, created_at, updated_at}`.
 - **`POST /tags`** → 201 | 422. Body: `{"tag": {"name": "backend"}}`.
 - **`PATCH /tags/:id`** → 200 | 422.
 - **`DELETE /tags/:id`** → 204 | 422 se em uso (`restrict_with_error`).
-- **Archival**: HTML-only hoje (ver Gaps).
+- **Archival**: `POST /…/:id/archival` arquiva, `DELETE` desarquiva — ambos
+  respondem 200 com o JSON do recurso atualizado (mesmo shape do show).
+  Token `read` → 401; recurso alheio → 404. Idempotentes.
 
 ## 9. Reports e Export
 
-Report é PORO + tela HTML — **sem endpoint JSON**. Export
-(`GET /reports/export.xlsx|.csv`) existe, mas **não é alcançável por Bearer
-hoje** (ver Gaps). Params (para quando destravar): `period`
+Report é PORO + tela HTML — **sem endpoint JSON de report**. O download do
+export **funciona via Bearer** (o gate aceita csv/xlsx; token `read` basta —
+é GET): `GET /reports/export.xlsx|.csv` → 200 com o arquivo
+(`Content-Disposition: attachment; filename="ponto-report-…"`); token
+inválido → 401. Params: `period`
 (`today|week|month|year|last_month|last_year|custom`, default `month`),
 `from`/`to` (`YYYY-MM-DD`, com `custom`), `client_ids[]`/`project_ids[]`/
 `task_ids[]`/`tag_ids[]` (aceitam `"none"`), `billable`, `description`,
@@ -275,7 +275,8 @@ entram (`report.rb:52–57`).
 - **Sobreposição**: entries finalizados não se sobrepõem ⇒ 422 com o
   intervalo conflitante.
 - **Delete vs archive**: Client/Tag têm delete bloqueado se em uso (422);
-  Project/Task/Entry deletam sempre. (Archive via CLI espera o gap fechar.)
+  Project/Task/Entry deletam sempre. Arquivar é o caminho seguro pra
+  recurso com histórico.
 - **Unicidade de nomes** (via `name_normalized`, sem acento/lowercase):
   clients/projects/tags por usuário; tasks por projeto.
 
@@ -293,9 +294,9 @@ entram (`report.rb:52–57`).
 | POST / DELETE | `/projects/:id/default` | sim |
 | GET / POST | `/projects/:project_id/tasks` | sim |
 | GET / PATCH / DELETE | `/tasks/:id` | sim |
-| POST / DELETE | `/*/:id/archival` | **não** (HTML) |
+| POST / DELETE | `/clients/:id/archival` · `/projects/:id/archival` · `/tasks/:task_id/archival` · `/tags/:id/archival` | sim (200, recurso atualizado) |
 | GET | `/reports` | **não** (HTML) |
-| GET | `/reports/export.{xlsx,csv}` | **não alcançável por Bearer hoje** |
+| GET | `/reports/export.{xlsx,csv}` | sim — download de arquivo via Bearer |
 
 ## 12. Exemplos
 

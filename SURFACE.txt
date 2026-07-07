@@ -6,10 +6,12 @@ CMD ponto auth logout
 CMD ponto auth status
 CMD ponto auth switch
 CMD ponto client
+CMD ponto client archive
 CMD ponto client create
 CMD ponto client delete
 CMD ponto client list
 CMD ponto client show
+CMD ponto client unarchive
 CMD ponto client update
 CMD ponto commands
 CMD ponto completion
@@ -25,28 +27,35 @@ CMD ponto entry list
 CMD ponto entry show
 CMD ponto entry split
 CMD ponto entry update
+CMD ponto export
 CMD ponto project
+CMD ponto project archive
 CMD ponto project create
 CMD ponto project default
 CMD ponto project delete
 CMD ponto project list
 CMD ponto project show
+CMD ponto project unarchive
 CMD ponto project update
 CMD ponto setup
 CMD ponto setup claude
 CMD ponto skill
 CMD ponto skill install
 CMD ponto tag
+CMD ponto tag archive
 CMD ponto tag create
 CMD ponto tag delete
 CMD ponto tag list
 CMD ponto tag show
+CMD ponto tag unarchive
 CMD ponto tag update
 CMD ponto task
+CMD ponto task archive
 CMD ponto task create
 CMD ponto task delete
 CMD ponto task list
 CMD ponto task show
+CMD ponto task unarchive
 CMD ponto task update
 CMD ponto timer
 CMD ponto timer start
@@ -98,6 +107,24 @@ FLAG ponto entry update --project type=int
 FLAG ponto entry update --start type=string
 FLAG ponto entry update --tag type=intSlice
 FLAG ponto entry update --task type=int
+FLAG ponto export --billable type=bool
+FLAG ponto export --client type=stringArray
+FLAG ponto export --description type=string
+FLAG ponto export --format type=string
+FLAG ponto export --from type=string
+FLAG ponto export --group-by type=string
+FLAG ponto export --group-by-2 type=string
+FLAG ponto export --locale type=string
+FLAG ponto export --not-billable type=bool
+FLAG ponto export --output type=string shorthand=o
+FLAG ponto export --period type=string
+FLAG ponto export --project type=stringArray
+FLAG ponto export --rounding type=bool
+FLAG ponto export --rounding-block type=int
+FLAG ponto export --rounding-direction type=string
+FLAG ponto export --tag type=stringArray
+FLAG ponto export --task type=stringArray
+FLAG ponto export --to type=string
 FLAG ponto project create --client type=int
 FLAG ponto project create --color type=string
 FLAG ponto project create --name type=string

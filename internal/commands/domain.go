@@ -26,6 +26,7 @@ type clientAPI interface {
 	Post(path string, body any) (*client.APIResponse, error)
 	Patch(path string, body any) (*client.APIResponse, error)
 	Delete(path string) (*client.APIResponse, error)
+	DownloadFile(path string) ([]byte, string, error)
 }
 
 func parseLocalTimestamp(value string) (string, error) {

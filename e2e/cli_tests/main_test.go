@@ -28,6 +28,7 @@ func TestCommandsCatalogIncludesDomainCommands(t *testing.T) {
 	for _, name := range []string{
 		"ponto timer", "ponto timer start", "ponto timer status", "ponto timer stop",
 		"ponto entry", "ponto client", "ponto project", "ponto task", "ponto tag",
+		"ponto client archive", "ponto client unarchive", "ponto export",
 	} {
 		if !found[name] {
 			t.Fatalf("commands catalog missing %s", name)

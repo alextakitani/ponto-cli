@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"mime"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -629,18 +630,17 @@ func ParsePage(nextURL string) string {
 	return u.Query().Get("page")
 }
 
-// DownloadFile downloads a file from a URL (following redirects) and saves it to the specified path.
-// The URL should be a relative path like /6085671/rails/active_storage/blobs/redirect/...
-func (c *Client) DownloadFile(urlPath string, destPath string) error {
+// DownloadFile downloads a binary file and returns its bytes plus the server-provided filename.
+func (c *Client) DownloadFile(urlPath string) ([]byte, string, error) {
 	requestURL := c.buildURL(urlPath)
 
 	req, err := http.NewRequestWithContext(context.Background(), "GET", requestURL, nil)
 	if err != nil {
-		return errors.NewNetworkError(fmt.Sprintf("Failed to create request: %v", err))
+		return nil, "", errors.NewNetworkError(fmt.Sprintf("Failed to create request: %v", err))
 	}
 
-	req.Header.Set("Authorization", "Bearer "+c.Token)
-	req.Header.Set("User-Agent", "ponto-cli/1.0")
+	c.setHeaders(req)
+	req.Header.Set("Accept", "*/*")
 
 	if c.Verbose {
 		fmt.Fprintf(os.Stderr, "> GET %s\n", requestURL)
@@ -648,7 +648,7 @@ func (c *Client) DownloadFile(urlPath string, destPath string) error {
 
 	resp, err := c.doWithRetry(req)
 	if err != nil {
-		return errors.NewNetworkError(fmt.Sprintf("Request failed: %v", err))
+		return nil, "", errors.NewNetworkError(fmt.Sprintf("Request failed: %v", err))
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -658,22 +658,24 @@ func (c *Client) DownloadFile(urlPath string, destPath string) error {
 
 	if resp.StatusCode >= 400 {
 		body, _ := io.ReadAll(resp.Body)
-		return errors.NewError(fmt.Sprintf("Download failed: %d %s", resp.StatusCode, string(body)))
+		return nil, "", c.errorFromResponse(resp.StatusCode, body, resp.Header)
 	}
 
-	// Create the destination file
-	out, err := os.Create(destPath)
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return errors.NewError(fmt.Sprintf("Failed to create file: %v", err))
+		return nil, "", errors.NewNetworkError(fmt.Sprintf("Failed to read response: %v", err))
 	}
 
-	// Copy the response body to the file
-	_, err = io.Copy(out, resp.Body)
+	return body, filenameFromDisposition(resp.Header.Get("Content-Disposition")), nil
+}
+
+func filenameFromDisposition(disposition string) string {
+	if disposition == "" {
+		return ""
+	}
+	_, params, err := mime.ParseMediaType(disposition)
 	if err != nil {
-		_ = out.Close()
-		_ = os.Remove(destPath)
-		return errors.NewError(fmt.Sprintf("Failed to write file: %v", err))
+		return ""
 	}
-
-	return out.Close()
+	return params["filename"]
 }

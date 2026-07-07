@@ -1,5 +1,7 @@
 # Ponto CLI
 
+**🇺🇸 English** · [🇧🇷 Português](README.pt.md)
+
 `ponto` is a command-line interface for [Ponto](https://github.com/alextakitani/ponto),
 a lean, self-hosted time tracker (Client → Project → Task → TimeEntry). Track
 time, manage your catalog, and export billable reports from your terminal or

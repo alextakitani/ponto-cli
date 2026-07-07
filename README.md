@@ -1,58 +1,242 @@
-# ponto-cli
+# Ponto CLI
 
-Command-line interface for [Ponto](https://github.com/alextakitani/ponto) — a
-lean, self-hosted time tracker (Client → Project → Task → TimeEntry).
+`ponto` is a command-line interface for [Ponto](https://github.com/alextakitani/ponto),
+a lean, self-hosted time tracker (Client → Project → Task → TimeEntry). Track
+time, manage your catalog, and export billable reports from your terminal or
+through AI agents.
 
-Single Go binary, agent-friendly output, made to be driven by humans and by
-AI agents (ships with a Claude skill). Structural fork of
-[fizzy-cli](https://github.com/basecamp/fizzy-cli) (MIT).
+- Works standalone or with any AI agent (Claude, Codex, Copilot, Gemini)
+- JSON output with breadcrumbs for easy navigation
+- Token authentication against **your own instance** (it's self-hosted — there
+  is no default server)
+- Includes an embedded agent skill and Claude Code setup
+- Single static binary; structural fork of
+  [fizzy-cli](https://github.com/basecamp/fizzy-cli) (MIT)
 
-> **Status: em desenvolvimento** — primeiro corte de comandos (Q75):
-> `timer` · `entry` · `client` / `project` / `task` / `tag` (CRUD +
-> archive/unarchive) · `export` (CSV/Excel) · `setup` / `doctor` /
-> `commands`. `report` (agregados JSON) chega quando o app o expuser.
+## Quick Start
 
-## Quick start
+Until binary releases are published, build from source (Go 1.26+):
 
-```sh
-ponto setup          # interactive: api_url (required), token, profile
-ponto timer start --description "Fixing the build"
+```bash
+git clone https://github.com/alextakitani/ponto-cli
+cd ponto-cli && make build     # → bin/ponto
+ponto setup
+```
+
+The setup wizard walks you through your instance URL (**required** — e.g.
+`https://ponto.example.com`), your access token, a named profile (e.g. `prod`,
+`dev`), and an optional default project.
+
+Get a token in the Ponto app under **Preferências → Extensão & CLI**. Tokens
+are `read` or `write`; the value is shown only once. A `write` token is needed
+for anything beyond listing and exporting.
+
+Recommended first checks:
+
+```bash
+ponto doctor
+ponto timer status
+```
+
+Use `ponto doctor` any time you want a full health check of your install,
+config, auth, API connectivity, and agent setup.
+
+<details>
+<summary>Other installation methods</summary>
+
+**Go install:**
+```bash
+go install github.com/alextakitani/ponto-cli/cmd/ponto@latest
+```
+
+**Installer script / Homebrew / deb / rpm:** the goreleaser pipeline and
+`scripts/install.sh` are wired up and will work once the first GitHub release
+is tagged.
+
+</details>
+
+## Next Steps
+
+The core loop — track time all day, invoice at the end of the month:
+
+```bash
+ponto timer start --description "Fixing the build"   # uses your default project
+ponto timer start --project 7 --task 3 --description "Code review"
 ponto timer status
 ponto timer stop
-ponto entry list --jq '.data[].description'
+
+ponto entry list
+ponto entry create --start "2026-07-06 09:00" --end "2026-07-06 10:30" \
+  --project 7 --description "Planning" --new-tag sprint-42
+ponto entry duplicate 42        # restart a finished entry as a new timer
+ponto entry split 42 --at "2026-07-06 10:00"
+
+ponto export --period month -o report.csv
+ponto export --period custom --from 2026-06-01 --to 2026-06-30 \
+  --client 1 --group-by project --format xlsx
 ```
 
-Auth uses the same `AccessToken` as the Chrome extension, generated in the
-app under **Preferências → Extensão & CLI** (`Authorization: Bearer`).
+Manage the catalog:
 
-Config lives in `~/.config/ponto/` with profiles (e.g. `prod`, `dev`);
-precedence is flags > env (`PONTO_TOKEN`, `PONTO_API_URL`, `PONTO_PROFILE`) >
-profile > local > global. There is no default `api_url` — it's your instance.
+```bash
+ponto client list
+ponto client create --name "Acme Corp" --currency BRL --rate-cents 15000
+ponto project create --name "Homelab" --client 1 --color "#1e66f5"
+ponto project default 7         # timer start without --project uses this
+ponto task create --project 7 --name "Infra"
+ponto tag create --name backend
+ponto client archive 1          # soft-delete; --archived lists them back
+ponto client unarchive 1
+```
 
-## Output envelope
+For the full command surface, run `ponto commands --json` or read
+[`skills/ponto/SKILL.md`](skills/ponto/SKILL.md).
 
-Every command prints JSON by default:
+### Timer semantics worth knowing
+
+- There is at most **one running timer** per user — the server enforces it.
+  Starting a second one returns a clear "timer is already running" error.
+- `timer start` without `--project` lets the **server** apply your default
+  project. Use `--no-project` to explicitly start without one.
+- Rates are snapshotted per entry when it's created (`rate_cents` +
+  `currency`); changing a project's rate later never rewrites history.
+- Timestamps you type without an offset are sent with your machine's local
+  offset, so "2026-07-06 09:00" means what you think it means.
+
+### Output Formats
+
+```bash
+ponto entry list                                  # JSON envelope
+ponto entry list --jq '.data[0].description'      # Built-in jq (no external jq needed)
+ponto entry list --quiet                          # Raw data, no envelope
+ponto entry list --styled                         # Terminal tables for humans
+ponto entry list --markdown                       # Markdown tables
+ponto project list --ids-only                     # One ID per line
+```
+
+`--jq` implies JSON and cannot be combined with `--styled`, `--markdown`,
+`--ids-only`, or `--count`.
+
+### JSON Envelope
+
+Every command returns structured JSON:
 
 ```json
-{ "ok": true, "data": { }, "summary": "Timer started", "breadcrumbs": [] }
+{
+  "ok": true,
+  "data": [...],
+  "summary": "3 projects",
+  "breadcrumbs": [{"action": "show", "cmd": "ponto project show <id>"}]
+}
 ```
 
-`--jq EXPR` filters inline (embedded gojq), `--styled` renders for humans,
-`--markdown` for docs/agents. `ponto commands --json` and `ponto --help
---agent` expose the full surface to agents.
+Breadcrumbs suggest next commands, making it easy for humans and agents to
+navigate. List/detail output also carries derived presentation fields
+(`duration` as `H:MM:SS`, `rate` as `"150.00 BRL"`) alongside the raw API
+values (`duration_seconds`, `rate_cents`, `currency`).
 
-## Claude
+## AI Agent Integration
 
-`ponto setup claude` installs the bundled skill so Claude can track time for
-you ("start a timer on project X", "how many hours this week?").
+`ponto` works with any AI agent that can run shell commands — "start a timer
+on the Kube project", "how many billable hours this week?", "export June as
+xlsx".
 
-## Docs
+**Claude Code:** `ponto setup claude` — links the embedded skill into
+Claude's skills directory.
 
-- [docs/spec.md](docs/spec.md) — what this CLI is and the decisions behind it
-- [docs/api.md](docs/api.md) — the Ponto JSON API surface
-- [docs/fork-plan.md](docs/fork-plan.md) — fizzy-cli fork map
+**Other agents:** point your agent at
+[`skills/ponto/SKILL.md`](skills/ponto/SKILL.md). `ponto skill` launches the
+interactive installer; `ponto skill install` installs directly.
+
+**Agent discovery:** every command supports `--help --agent` for structured
+help output. Use `ponto commands --json` for the full command catalog.
+
+## Configuration
+
+```
+~/.config/ponto/              # Global config
+├── config.json               #   Named profiles (base URL, default project)
+├── config.yaml               #   Global settings
+└── credentials/              #   Fallback token storage (when keyring unavailable)
+
+.ponto.yaml                   # Per-repo (local config overrides global)
+```
+
+Configuration priority (highest to lowest):
+
+1. CLI flags (`--token`, `--profile`, `--api-url`)
+2. Environment variables (`PONTO_TOKEN`, `PONTO_PROFILE`, `PONTO_API_URL`)
+3. Named profile settings (`config.json`)
+4. Local project config (`.ponto.yaml`)
+5. Global config (`~/.config/ponto/config.yaml` or `~/.ponto/config.yaml`)
+
+There is **no default `api_url`** — Ponto is self-hosted, so the URL always
+points at your instance. Tokens are stored in the system keyring
+(`PONTO_NO_KEYRING=1` forces the file fallback);
+`PONTO_NO_UPDATE_NOTIFIER=1` silences update checks.
+
+Profiles make multiple instances painless — e.g. `prod` (your homelab) and
+`dev` (localhost:3000):
+
+```bash
+ponto timer status --profile dev
+PONTO_PROFILE=dev ponto entry list
+```
+
+Inspect the effective config and precedence:
+
+```bash
+ponto config show
+ponto config explain
+ponto config explain --profile dev
+```
+
+## Troubleshooting
+
+```bash
+ponto doctor                 # Full install/config/auth/API health check
+ponto doctor --profile dev   # Check one saved profile explicitly
+ponto doctor --all-profiles  # Sweep every saved profile
+ponto doctor --verbose       # Include effective config details
+ponto doctor --json          # Structured output for scripts
+```
+
+Common follow-up commands:
+
+```bash
+ponto auth status
+ponto config show
+ponto config explain
+ponto setup
+ponto setup claude
+ponto skill install
+```
+
+Errors map to semantic exit codes (not found, auth, forbidden, rate-limit,
+network, API) and include a `hint` with the command that usually fixes it.
+
+## Development
+
+```bash
+make build            # Build binary → bin/ponto
+make test-unit        # Unit tests (no API required)
+make check            # fmt + vet + lint + tidy + race tests
+make e2e              # CLI contract e2e suite against a real instance
+make surface-check    # Verify SURFACE.txt (CLI surface snapshot) is current
+```
+
+E2E requirements (tests skip when unset):
+
+- `PONTO_TEST_TOKEN` — a `write` token on a **disposable** account
+- `PONTO_TEST_API_URL` — the instance to run against
+- optional: `PONTO_TEST_BINARY`
+
+Docs for contributors: [`docs/spec.md`](docs/spec.md) (what this CLI is and
+why), [`docs/api.md`](docs/api.md) (the Ponto JSON API contract),
+[`docs/fork-plan.md`](docs/fork-plan.md) (what was inherited from fizzy-cli).
 
 ## License
 
-[MIT](LICENSE.md). The Ponto app itself is O'Saasy; the CLI is MIT on purpose,
-mirroring fizzy + fizzy-cli.
+[MIT](LICENSE.md). The Ponto app itself is licensed
+[O'Saasy](https://github.com/alextakitani/ponto/blob/main/LICENSE.md); the CLI
+is MIT on purpose — the same combination fizzy uses.

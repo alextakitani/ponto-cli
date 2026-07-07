@@ -1,0 +1,5 @@
+/ponto
+/dist/
+*.test
+coverage.out
+.env

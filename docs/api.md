@@ -1,9 +1,12 @@
 # API JSON do Ponto — Referência para o CLI
 
-> Mapeada em 07/07/2026 explorando `~/Projetos/ponto` (Rails). Fontes
-> principais: `app/models/access_token.rb`, `app/controllers/concerns/
-> authentication.rb`, `config/routes.rb`, views `*.json.jbuilder`,
-> `db/schema.rb`.
+> **Cópia sincronizada.** A FONTE canônica é `docs/api.md` no repo do servidor
+> (`alextakitani/ponto`) — a API é definida lá. Mantenha esta cópia em dia
+> quando o contrato mudar.
+
+> Fontes no código do servidor: `app/models/access_token.rb`,
+> `app/controllers/concerns/authentication.rb`, `config/routes.rb`, views
+> `*.json.jbuilder`, `db/schema.rb`.
 
 > **Histórico**: os gaps de Bearer identificados em 07/07 (archival HTML-only
 > e export fora do gate) foram RESOLVIDOS no app no mesmo dia. O gate aceita
@@ -130,7 +133,12 @@ Body (tudo opcional): `{"timer": {"project_id": 7, "task_id": 3, "description": 
   "currency": "BRL",          // snapshot
   "billable": true,
   "duration_seconds": 5400,          // null se rodando
-  "billable_amount_cents": 22500     // null se rodando, não-billable ou sem rate
+  "billable_amount_cents": 22500,    // null se rodando, não-billable ou sem rate
+  "tag_ids": [5, 1],                 // ordenados por nome normalizado
+  "tags": [                          // id + name, mesma ordem de tag_ids
+    {"id": 5, "name": "backend"},
+    {"id": 1, "name": "urgente"}
+  ]
 }
 ```
 
@@ -265,6 +273,25 @@ inválido → 401. Params: `period`
 (`nearest|up|down`), `export_locale` (`pt-BR|en`). Só entries finalizados
 entram (`report.rb:52–57`).
 
+## 9b. Preferências do usuário
+
+`GET /preferences.json` → 200. As preferências do usuário autenticado (Bearer;
+token `read` basta — é GET), pra espelhar a config sem uma tela dedicada. Só
+escalares:
+
+```jsonc
+{
+  "locale": "pt-BR",          // null | "pt-BR" | "en"
+  "theme": "system",          // "system" | "light" | "dark"
+  "accent": "teal",           // cor de acento (6 opções Catppuccin)
+  "time_zone": "America/Sao_Paulo",
+  "export_locale": null       // null | "pt-BR" | "en"
+}
+```
+
+(`preferences_controller.rb#show` + `preferences/show.json.jbuilder`.) A
+atualização segue só-web (form HTML) — sem PATCH JSON destas preferências.
+
 ## 10. Regras de domínio que o CLI respeita
 
 - **Timer único**: tratar 409 graciosamente (mostrar o timer corrente).
@@ -295,6 +322,8 @@ entram (`report.rb:52–57`).
 | GET / POST | `/projects/:project_id/tasks` | sim |
 | GET / PATCH / DELETE | `/tasks/:id` | sim |
 | POST / DELETE | `/clients/:id/archival` · `/projects/:id/archival` · `/tasks/:task_id/archival` · `/tags/:id/archival` | sim (200, recurso atualizado) |
+| GET | `/preferences` | sim (só show; preferências do user) |
+| GET | `/reports/export.xlsx\|.csv` | sim (arquivo) |
 | GET | `/reports` | **não** (HTML) |
 | GET | `/reports/export.{xlsx,csv}` | sim — download de arquivo via Bearer |
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Publish fizzy-cli to AUR
+# Publish ponto-cli to AUR
 # Requires: AUR_KEY environment variable
 
 if [ -z "${GITHUB_REF_NAME:-}" ]; then
@@ -9,9 +9,9 @@ if [ -z "${GITHUB_REF_NAME:-}" ]; then
   exit 1
 fi
 VERSION="${GITHUB_REF_NAME#v}"
-REPO="basecamp/fizzy-cli"
+REPO="alextakitani/ponto-cli"
 
-echo "Publishing fizzy-cli $VERSION to AUR..."
+echo "Publishing ponto-cli $VERSION to AUR..."
 
 # Get source tarball checksum
 SOURCE_URL="https://github.com/$REPO/archive/v${VERSION}.tar.gz"
@@ -21,18 +21,18 @@ rm source.tar.gz
 
 # Generate PKGBUILD
 cat > PKGBUILD << EOF
-# Maintainer: 37signals <support@37signals.com>
-pkgname=fizzy-cli
+# Maintainer: Alex Takitani
+pkgname=ponto-cli
 pkgver=$VERSION
 pkgrel=1
-pkgdesc="CLI for managing Fizzy boards, cards, and tasks"
+pkgdesc="CLI for Ponto"
 arch=('x86_64' 'aarch64')
 url="https://github.com/$REPO"
 license=('MIT')
 depends=('glibc')
 makedepends=('go')
-provides=('fizzy')
-conflicts=('fizzy' 'fizzy-bin')
+provides=('ponto')
+conflicts=('ponto' 'ponto-bin')
 source=("\$pkgname-\$pkgver.tar.gz::https://github.com/$REPO/archive/v\$pkgver.tar.gz")
 sha256sums=('$SHA256')
 options=('!debug')
@@ -44,28 +44,28 @@ build() {
     export CGO_CXXFLAGS="\${CXXFLAGS}"
     export CGO_LDFLAGS="\${LDFLAGS}"
     export GOFLAGS="-buildmode=pie -trimpath -mod=readonly -modcacherw"
-    go build -ldflags "-s -w -X main.version=\${pkgver}" -o fizzy ./cmd/fizzy
+    go build -ldflags "-s -w -X main.version=\${pkgver}" -o ponto ./cmd/ponto
 
     # Generate completions
-    ./fizzy completion bash > fizzy.bash
-    ./fizzy completion zsh > fizzy.zsh
-    ./fizzy completion fish > fizzy.fish
+    ./ponto completion bash > ponto.bash
+    ./ponto completion zsh > ponto.zsh
+    ./ponto completion fish > ponto.fish
 }
 
 package() {
     cd "\$pkgname-\$pkgver"
-    install -Dm755 fizzy "\$pkgdir/usr/bin/fizzy"
+    install -Dm755 ponto "\$pkgdir/usr/bin/ponto"
     install -Dm644 MIT-LICENSE "\$pkgdir/usr/share/licenses/\$pkgname/MIT-LICENSE"
-    install -Dm644 fizzy.bash "\$pkgdir/usr/share/bash-completion/completions/fizzy"
-    install -Dm644 fizzy.zsh "\$pkgdir/usr/share/zsh/site-functions/_fizzy"
-    install -Dm644 fizzy.fish "\$pkgdir/usr/share/fish/vendor_completions.d/fizzy.fish"
+    install -Dm644 ponto.bash "\$pkgdir/usr/share/bash-completion/completions/ponto"
+    install -Dm644 ponto.zsh "\$pkgdir/usr/share/zsh/site-functions/_ponto"
+    install -Dm644 ponto.fish "\$pkgdir/usr/share/fish/vendor_completions.d/ponto.fish"
 }
 EOF
 
 # Generate .SRCINFO
 cat > .SRCINFO << EOF
-pkgbase = fizzy-cli
-	pkgdesc = CLI for managing Fizzy boards, cards, and tasks
+pkgbase = ponto-cli
+	pkgdesc = CLI for Ponto
 	pkgver = $VERSION
 	pkgrel = 1
 	url = https://github.com/$REPO
@@ -74,14 +74,14 @@ pkgbase = fizzy-cli
 	license = MIT
 	makedepends = go
 	depends = glibc
-	provides = fizzy
-	conflicts = fizzy
-	conflicts = fizzy-bin
+	provides = ponto
+	conflicts = ponto
+	conflicts = ponto-bin
 	options = !debug
-	source = fizzy-cli-$VERSION.tar.gz::https://github.com/$REPO/archive/v$VERSION.tar.gz
+	source = ponto-cli-$VERSION.tar.gz::https://github.com/$REPO/archive/v$VERSION.tar.gz
 	sha256sums = $SHA256
 
-pkgname = fizzy-cli
+pkgname = ponto-cli
 EOF
 
 # Clone AUR repo and push
@@ -95,7 +95,7 @@ Host aur.archlinux.org
     StrictHostKeyChecking accept-new
 SSHEOF
 
-git clone ssh://aur@aur.archlinux.org/fizzy-cli.git aur-repo
+git clone ssh://aur@aur.archlinux.org/ponto-cli.git aur-repo
 cp PKGBUILD .SRCINFO aur-repo/
 cd aur-repo
 git config user.name "cli-release-bot"
@@ -108,4 +108,4 @@ else
   git push
 fi
 
-echo "Published fizzy-cli $VERSION to AUR"
+echo "Published ponto-cli $VERSION to AUR"

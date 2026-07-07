@@ -15,13 +15,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/basecamp/fizzy-cli/internal/config"
+	"github.com/alextakitani/ponto-cli/internal/config"
 	version "github.com/hashicorp/go-version"
 	"github.com/mattn/go-isatty"
 	"gopkg.in/yaml.v3"
 )
 
-const fizzyUpdateRepo = "basecamp/fizzy-cli"
+const pontoUpdateRepo = "alextakitani/ponto-cli"
 
 var gitDescribeSuffixRE = regexp.MustCompile(`\d+-\d+-g[a-f0-9]{8}$`)
 
@@ -99,11 +99,11 @@ func finishUpdateCheck() {
 		return
 	}
 
-	fmt.Fprintf(os.Stderr, "\n\nA new release of Fizzy is available: %s → %s\n",
+	fmt.Fprintf(os.Stderr, "\n\nA new release of Ponto is available: %s → %s\n",
 		strings.TrimPrefix(currentVersion(), "v"),
 		strings.TrimPrefix(rel.Version, "v"))
 	if isHomebrew {
-		fmt.Fprintln(os.Stderr, "To upgrade, run: brew upgrade basecamp/tap/fizzy")
+		fmt.Fprintln(os.Stderr, "To upgrade, run: brew upgrade basecamp/tap/ponto")
 	} else {
 		fmt.Fprintln(os.Stderr, "Upgrade with your package manager, or download it from:")
 	}
@@ -111,7 +111,7 @@ func finishUpdateCheck() {
 }
 
 func shouldCheckForUpdate() bool {
-	if os.Getenv("FIZZY_NO_UPDATE_NOTIFIER") != "" {
+	if os.Getenv("PONTO_NO_UPDATE_NOTIFIER") != "" {
 		return false
 	}
 	if os.Getenv("CODESPACES") != "" {
@@ -142,7 +142,7 @@ func checkForUpdate(ctx context.Context, client *http.Client, stateFilePath, cur
 		return nil, nil
 	}
 
-	rel, err := getLatestReleaseInfo(ctx, client, fizzyUpdateRepo)
+	rel, err := getLatestReleaseInfo(ctx, client, pontoUpdateRepo)
 	if err != nil {
 		return nil, err
 	}
@@ -163,7 +163,7 @@ func getLatestReleaseInfo(ctx context.Context, client *http.Client, repo string)
 		return nil, err
 	}
 	req.Header.Set("Accept", "application/vnd.github+json")
-	req.Header.Set("User-Agent", "fizzy-cli/"+currentVersion())
+	req.Header.Set("User-Agent", "ponto-cli/"+currentVersion())
 
 	res, err := client.Do(req)
 	if err != nil {

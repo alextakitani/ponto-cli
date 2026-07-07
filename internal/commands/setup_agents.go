@@ -5,7 +5,7 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/basecamp/fizzy-cli/internal/harness"
+	"github.com/alextakitani/ponto-cli/internal/harness"
 	"github.com/charmbracelet/huh"
 	"github.com/spf13/cobra"
 )
@@ -23,9 +23,9 @@ var agentSetupHandlers = map[string]agentSetupHandler{
 	"claude": {
 		Labels: []string{
 			"Add basecamp/claude-plugins marketplace to Claude Code",
-			"Install the fizzy plugin for Claude Code",
+			"Install the ponto plugin for Claude Code",
 		},
-		Confirm:           "Set up Fizzy for your coding agents?",
+		Confirm:           "Set up Ponto for your coding agents?",
 		Run:               runClaudeSetup,
 		RunNonInteractive: runClaudeSetupNonInteractive,
 	},
@@ -145,7 +145,7 @@ func setupAgents(cmd *cobra.Command) error {
 	// Build numbered list of what will happen
 	fmt.Fprintln(w, "  This will:")
 	step := 1
-	fmt.Fprintf(w, "    %d. Install Fizzy agent skill to ~/.agents/skills/fizzy/\n", step)
+	fmt.Fprintf(w, "    %d. Install Ponto agent skill to ~/.agents/skills/ponto/\n", step)
 	step++
 	for _, a := range agents {
 		handler, ok := agentSetupHandlers[a.ID]
@@ -161,7 +161,7 @@ func setupAgents(cmd *cobra.Command) error {
 
 	var install bool
 	err := huh.NewConfirm().
-		Title("Set up Fizzy for your coding agents?").
+		Title("Set up Ponto for your coding agents?").
 		Value(&install).
 		Run()
 
@@ -170,7 +170,7 @@ func setupAgents(cmd *cobra.Command) error {
 		fmt.Fprintln(w, "  You can set up agents later:")
 		for _, a := range agents {
 			if _, ok := agentSetupHandlers[a.ID]; ok {
-				fmt.Fprintf(w, "    fizzy setup %s\n", a.ID)
+				fmt.Fprintf(w, "    ponto setup %s\n", a.ID)
 			}
 		}
 		fmt.Fprintln(w)
@@ -248,8 +248,8 @@ func newSetupAgentCmds() []*cobra.Command {
 		h := handler // capture
 		cmds = append(cmds, &cobra.Command{
 			Use:   agent.ID,
-			Short: fmt.Sprintf("Install the Fizzy plugin for %s", agent.Name),
-			Long:  fmt.Sprintf("Set up the %s integration so %s can access Fizzy.", agent.Name, agent.Name),
+			Short: fmt.Sprintf("Install the Ponto plugin for %s", agent.Name),
+			Long:  fmt.Sprintf("Set up the %s integration so %s can access Ponto.", agent.Name, agent.Name),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				// Always install baseline skill
 				_, skillErr := installSkillFiles()
@@ -278,7 +278,7 @@ func newSetupAgentCmds() []*cobra.Command {
 						return err
 					}
 
-					fmt.Fprintf(w, "  Start a new %s session to use Fizzy commands.\n", agent.Name)
+					fmt.Fprintf(w, "  Start a new %s session to use Ponto commands.\n", agent.Name)
 				}
 
 				// Build structured result

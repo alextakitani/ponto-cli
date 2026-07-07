@@ -21,20 +21,16 @@ type commandInfo struct {
 	Subcommands []commandInfo `json:"subcommands,omitempty"`
 }
 
-var commandCatalogOrder = []string{"core", "collaboration", "admin", "utilities"}
+var commandCatalogOrder = []string{"core", "utilities"}
 
 var commandCatalogTitles = map[string]string{
-	"core":          "CORE COMMANDS",
-	"collaboration": "COLLABORATION",
-	"admin":         "ACCOUNT & ADMIN",
-	"utilities":     "SETUP & TOOLS",
+	"core":      "CORE COMMANDS",
+	"utilities": "SETUP & TOOLS",
 }
 
 var commandCatalogGroups = map[string][]string{
-	"core":          {"activity", "board", "card", "column", "comment", "search", "step"},
-	"collaboration": {"notification", "pin", "reaction", "tag", "user"},
-	"admin":         {"auth", "account", "identity", "token", "webhook", "upload", "migrate"},
-	"utilities":     {"setup", "signup", "completion", "doctor", "config", "skill", "commands", "version"},
+	"core":      {"auth"},
+	"utilities": {"setup", "completion", "doctor", "config", "skill", "commands", "version"},
 }
 
 var commandCatalogCategory = func() map[string]string {
@@ -68,14 +64,14 @@ var commandsCmd = &cobra.Command{
 	Short:   "List all available commands",
 	Long:    "Lists all available commands. Use --json for a structured command catalog.",
 	Args:    cobra.MaximumNArgs(1),
-	Example: "$ fizzy commands\n$ fizzy commands auth\n$ fizzy commands --json",
+	Example: "$ ponto commands\n$ ponto commands auth\n$ ponto commands --json",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		filter := ""
 		if len(args) == 1 {
 			filter = args[0]
 		}
 
-		catalog := walkCommands(rootCmd, "fizzy", filter)
+		catalog := walkCommands(rootCmd, "ponto", filter)
 		if isHumanOutput() {
 			renderCommandsCatalog(outWriter, filter)
 			captureResponse()
@@ -230,12 +226,12 @@ func renderCommandsCatalog(w io.Writer, filter string) {
 
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "LEARN MORE")
-	fmt.Fprintln(w, "  fizzy <command> --help   Help for a specific command")
-	fmt.Fprintln(w, "  fizzy commands --json    Structured command catalog")
+	fmt.Fprintln(w, "  ponto <command> --help   Help for a specific command")
+	fmt.Fprintln(w, "  ponto commands --json    Structured command catalog")
 	if strings.TrimSpace(filter) == "" {
-		fmt.Fprintln(w, "  fizzy commands auth      Filter commands by name or description")
+		fmt.Fprintln(w, "  ponto commands auth      Filter commands by name or description")
 	} else {
-		fmt.Fprintln(w, "  fizzy commands           Full command catalog")
+		fmt.Fprintln(w, "  ponto commands           Full command catalog")
 	}
 }
 

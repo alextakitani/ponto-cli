@@ -4,40 +4,40 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/alextakitani/ponto-cli/internal/errors"
 	"github.com/basecamp/cli/output"
-	"github.com/basecamp/fizzy-cli/internal/errors"
 	"github.com/spf13/cobra"
 )
 
 var completionCmd = &cobra.Command{
 	Use:   "completion [bash|zsh|fish|powershell]",
 	Short: "Generate shell completion scripts",
-	Long: `Generate shell completion scripts for fizzy.
+	Long: `Generate shell completion scripts for ponto.
 
 To load completions:
 
 Bash:
-  $ source <(fizzy completion bash)
+  $ source <(ponto completion bash)
   # To load completions for each session, execute once:
   # Linux:
-  $ fizzy completion bash > /etc/bash_completion.d/fizzy
+  $ ponto completion bash > /etc/bash_completion.d/ponto
   # macOS:
-  $ fizzy completion bash > $(brew --prefix)/etc/bash_completion.d/fizzy
+  $ ponto completion bash > $(brew --prefix)/etc/bash_completion.d/ponto
 
 Zsh:
-  $ source <(fizzy completion zsh)
+  $ source <(ponto completion zsh)
   # To load completions for each session, execute once:
-  $ fizzy completion zsh > "${fpath[1]}/_fizzy"
+  $ ponto completion zsh > "${fpath[1]}/_ponto"
 
 Fish:
-  $ fizzy completion fish | source
+  $ ponto completion fish | source
   # To load completions for each session, execute once:
-  $ fizzy completion fish > ~/.config/fish/completions/fizzy.fish
+  $ ponto completion fish > ~/.config/fish/completions/ponto.fish
 
 PowerShell:
-  PS> fizzy completion powershell | Out-String | Invoke-Expression
+  PS> ponto completion powershell | Out-String | Invoke-Expression
   # To load completions for each session, add to your profile:
-  PS> fizzy completion powershell > fizzy.ps1 && . fizzy.ps1
+  PS> ponto completion powershell > ponto.ps1 && . ponto.ps1
 `,
 	DisableFlagsInUseLine: true,
 	ValidArgs:             []string{"bash", "zsh", "fish", "powershell"},

@@ -1,10 +1,9 @@
-module github.com/basecamp/fizzy-cli
+module github.com/alextakitani/ponto-cli
 
 go 1.26.4
 
 require (
 	github.com/basecamp/cli v0.2.1
-	github.com/basecamp/fizzy-sdk/go v0.2.3
 	github.com/charmbracelet/huh v1.0.0
 	github.com/charmbracelet/lipgloss v1.1.0
 	github.com/charmbracelet/x/term v0.2.2

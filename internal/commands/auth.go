@@ -1,12 +1,11 @@
 package commands
 
 import (
-	"encoding/json"
 	"fmt"
 
+	"github.com/alextakitani/ponto-cli/internal/config"
+	"github.com/alextakitani/ponto-cli/internal/errors"
 	"github.com/basecamp/cli/output"
-	"github.com/basecamp/fizzy-cli/internal/config"
-	"github.com/basecamp/fizzy-cli/internal/errors"
 	"github.com/spf13/cobra"
 )
 
@@ -23,10 +22,10 @@ var authLoginCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		token := args[0]
-		profileName := cfg.Account
+		profileName := cfg.Profile
 
 		if profileName == "" {
-			return errors.NewInvalidArgsError("No profile configured. Set --profile flag, FIZZY_PROFILE, or run 'fizzy setup'")
+			return errors.NewInvalidArgsError("No profile configured. Set --profile flag, PONTO_PROFILE, or run 'ponto setup'")
 		}
 
 		if creds != nil {
@@ -40,7 +39,7 @@ var authLoginCmd = &cobra.Command{
 				_ = profiles.SetDefault(profileName)
 			}
 			globalCfg := config.LoadGlobal()
-			globalCfg.Account = profileName
+			globalCfg.Profile = profileName
 			if globalCfg.Token != "" {
 				globalCfg.Token = ""
 			}
@@ -51,7 +50,7 @@ var authLoginCmd = &cobra.Command{
 			// Fallback: save to config file (test mode or credstore unavailable)
 			globalCfg := config.LoadGlobal()
 			globalCfg.Token = token
-			globalCfg.Account = profileName
+			globalCfg.Profile = profileName
 			if err := globalCfg.Save(); err != nil {
 				return &output.Error{Code: output.CodeAPI, Message: err.Error()}
 			}
@@ -59,9 +58,8 @@ var authLoginCmd = &cobra.Command{
 
 		// Build breadcrumbs
 		breadcrumbs := []Breadcrumb{
-			breadcrumb("status", "fizzy auth status", "Check auth status"),
-			breadcrumb("identity", "fizzy identity show", "View identity"),
-			breadcrumb("boards", "fizzy board list", "List boards"),
+			breadcrumb("status", "ponto auth status", "Check auth status"),
+			breadcrumb("commands", "ponto commands", "List commands"),
 		}
 
 		result := map[string]any{
@@ -93,7 +91,7 @@ var authLogoutCmd = &cobra.Command{
 			return authLogoutAll()
 		}
 
-		profileName := cfg.Account
+		profileName := cfg.Profile
 		if profileName == "" {
 			return errors.NewInvalidArgsError("No profile configured. Use --profile to specify which profile to log out, or --all to log out of all profiles")
 		}
@@ -109,16 +107,16 @@ var authLogoutCmd = &cobra.Command{
 			_ = profiles.Delete(profileName)
 		}
 
-		// Clear active account if logging out of it
+		// Clear active profile if logging out of it
 		globalCfg := config.LoadGlobal()
-		if globalCfg.Account == profileName {
-			globalCfg.Account = ""
+		if globalCfg.Profile == profileName {
+			globalCfg.Profile = ""
 			globalCfg.Token = ""
 		}
 		_ = globalCfg.Save()
 
 		breadcrumbs := []Breadcrumb{
-			breadcrumb("login", "fizzy auth login <token>", "Log in again"),
+			breadcrumb("login", "ponto auth login <token>", "Log in again"),
 		}
 
 		printMutation(map[string]any{
@@ -131,7 +129,7 @@ var authLogoutCmd = &cobra.Command{
 }
 
 func authLogoutAll() error {
-	// Collect all known profile/account names to clean up every key format
+	// Collect all known profile names to clean up every key format
 	names := map[string]bool{}
 
 	if profiles != nil {
@@ -141,16 +139,15 @@ func authLogoutAll() error {
 		}
 	}
 
-	// Also include the YAML config's Account in case it's not in the profile store
+	// Also include the YAML config's profile in case it's not in the profile store
 	globalCfg := config.LoadGlobal()
-	if globalCfg.Account != "" {
-		names[globalCfg.Account] = true
+	if globalCfg.Profile != "" {
+		names[globalCfg.Profile] = true
 	}
 
 	for name := range names {
 		if creds != nil {
 			_ = credsDeleteProfileToken(name) // "profile:<name>"
-			_ = creds.Delete("token:" + name) // legacy "token:<account>"
 		}
 		if profiles != nil {
 			_ = profiles.Delete(name)
@@ -167,8 +164,8 @@ func authLogoutAll() error {
 	}
 
 	breadcrumbs := []Breadcrumb{
-		breadcrumb("login", "fizzy auth login <token>", "Log in again"),
-		breadcrumb("signup", "fizzy signup", "Sign up"),
+		breadcrumb("login", "ponto auth login <token>", "Log in again"),
+		breadcrumb("setup", "ponto setup", "Set up Ponto CLI"),
 	}
 
 	printMutation(map[string]any{
@@ -194,10 +191,10 @@ var authStatusCmd = &cobra.Command{
 
 		if effectiveCfg.Token != "" {
 			status["token_configured"] = true
-			if effectiveCfg.Account != "" {
-				status["profile"] = effectiveCfg.Account
+			if effectiveCfg.Profile != "" {
+				status["profile"] = effectiveCfg.Profile
 			}
-			if effectiveCfg.APIURL != "" && effectiveCfg.APIURL != config.DefaultAPIURL {
+			if effectiveCfg.APIURL != "" {
 				status["api_url"] = effectiveCfg.APIURL
 			}
 		}
@@ -211,14 +208,13 @@ var authStatusCmd = &cobra.Command{
 
 		// Build breadcrumbs
 		breadcrumbs := []Breadcrumb{
-			breadcrumb("identity", "fizzy identity show", "View identity"),
-			breadcrumb("logout", "fizzy auth logout", "Log out"),
+			breadcrumb("logout", "ponto auth logout", "Log out"),
 		}
 
 		if profiles != nil {
 			allProfiles, _, _ := profiles.List()
 			if len(allProfiles) > 1 {
-				breadcrumbs = append(breadcrumbs, breadcrumb("list", "fizzy auth list", "List profiles"))
+				breadcrumbs = append(breadcrumbs, breadcrumb("list", "ponto auth list", "List profiles"))
 			}
 		}
 
@@ -234,8 +230,8 @@ var authListCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if profiles == nil {
 			breadcrumbs := []Breadcrumb{
-				breadcrumb("login", "fizzy auth login <token>", "Log in"),
-				breadcrumb("signup", "fizzy signup", "Sign up"),
+				breadcrumb("login", "ponto auth login <token>", "Log in"),
+				breadcrumb("setup", "ponto setup", "Set up Ponto CLI"),
 			}
 			printList([]any{}, authProfileColumns, "No profiles configured", breadcrumbs)
 			return nil
@@ -244,8 +240,8 @@ var authListCmd = &cobra.Command{
 		allProfiles, defaultName, err := profiles.List()
 		if err != nil || len(allProfiles) == 0 {
 			breadcrumbs := []Breadcrumb{
-				breadcrumb("login", "fizzy auth login <token>", "Log in"),
-				breadcrumb("signup", "fizzy signup", "Sign up"),
+				breadcrumb("login", "ponto auth login <token>", "Log in"),
+				breadcrumb("setup", "ponto setup", "Set up Ponto CLI"),
 			}
 			printList([]any{}, authProfileColumns, "No profiles configured", breadcrumbs)
 			return nil
@@ -267,19 +263,11 @@ var authListCmd = &cobra.Command{
 				entry["has_token"] = false
 			}
 
-			// Include board from Extra if present
-			if boardRaw, ok := p.Extra["board"]; ok {
-				var board string
-				if json.Unmarshal(boardRaw, &board) == nil {
-					entry["board"] = board
-				}
-			}
-
 			entries = append(entries, entry)
 		}
 
 		breadcrumbs := []Breadcrumb{
-			breadcrumb("switch", "fizzy auth switch <profile>", "Switch profile"),
+			breadcrumb("switch", "ponto auth switch <profile>", "Switch profile"),
 		}
 
 		printList(entries, authProfileColumns, fmt.Sprintf("%d profile(s)", len(entries)), breadcrumbs)
@@ -305,14 +293,14 @@ var authSwitchCmd = &cobra.Command{
 		if !hasToken {
 			// Also check legacy keys
 			if creds != nil {
-				if _, err := credsLoadLegacyToken(profileName); err == nil {
+				if _, err := credsLoadLegacyToken(); err == nil {
 					hasToken = true
 				}
 			}
 		}
 
 		if !hasToken {
-			return errors.NewError(fmt.Sprintf("No credentials found for profile %q. Run 'fizzy auth login <token> --profile %s' or 'fizzy signup'", profileName, profileName))
+			return errors.NewError(fmt.Sprintf("No credentials found for profile %q. Run 'ponto auth login <token> --profile %s' or 'ponto setup'", profileName, profileName))
 		}
 
 		// Ensure profile exists in store
@@ -323,32 +311,19 @@ var authSwitchCmd = &cobra.Command{
 			}
 		}
 
-		// Read the target profile's board from Extra
-		var profileBoard string
-		if profiles != nil {
-			if p, err := profiles.Get(profileName); err == nil {
-				if boardRaw, ok := p.Extra["board"]; ok {
-					_ = json.Unmarshal(boardRaw, &profileBoard)
-				}
-			}
-		}
-
-		// Update YAML config for backward compat
 		globalCfg := config.LoadGlobal()
-		globalCfg.Account = profileName
-		globalCfg.Board = profileBoard
+		globalCfg.Profile = profileName
 		if err := globalCfg.Save(); err != nil {
 			return &output.Error{Code: output.CodeAPI, Message: err.Error()}
 		}
 
 		// Update in-memory config
 		if cfg != nil {
-			cfg.Account = profileName
-			cfg.Board = profileBoard
+			cfg.Profile = profileName
 			if creds != nil {
 				if t, err := credsLoadProfileToken(profileName); err == nil {
 					cfg.Token = t
-				} else if t, err := credsLoadLegacyToken(profileName); err == nil {
+				} else if t, err := credsLoadLegacyToken(); err == nil {
 					cfg.Token = t
 				}
 			}
@@ -362,8 +337,7 @@ var authSwitchCmd = &cobra.Command{
 		}
 
 		breadcrumbs := []Breadcrumb{
-			breadcrumb("boards", "fizzy board list", "List boards"),
-			breadcrumb("status", "fizzy auth status", "Check auth status"),
+			breadcrumb("status", "ponto auth status", "Check auth status"),
 		}
 
 		printMutation(map[string]any{

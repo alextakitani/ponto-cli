@@ -1,4 +1,4 @@
-// Package render provides styled and markdown output rendering for the Fizzy CLI.
+// Package render provides styled and markdown output rendering for the Ponto CLI.
 // The shared output.Writer falls back to JSON for FormatStyled/FormatMarkdown;
 // this package supplies the app-specific rendering.
 package render

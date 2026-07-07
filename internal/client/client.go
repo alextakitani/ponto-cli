@@ -1,4 +1,4 @@
-// Package client provides an HTTP client for the Fizzy API.
+// Package client provides an HTTP client for the Ponto API.
 package client
 
 import (
@@ -19,15 +19,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alextakitani/ponto-cli/internal/errors"
 	"github.com/basecamp/cli/output"
-	"github.com/basecamp/fizzy-cli/internal/errors"
 )
 
-// Client is an HTTP client for the Fizzy API.
+// Client is an HTTP client for the Ponto API.
 type Client struct {
 	BaseURL    string
 	Token      string
-	Account    string
 	HTTPClient *http.Client
 	Verbose    bool
 	// Sleeper is called for retry delays. Defaults to time.Sleep.
@@ -45,11 +44,10 @@ type APIResponse struct {
 }
 
 // New creates a new API client.
-func New(baseURL, token, account string) *Client {
+func New(baseURL, token string) *Client {
 	return &Client{
 		BaseURL: strings.TrimSuffix(baseURL, "/"),
 		Token:   token,
-		Account: account,
 		HTTPClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -65,13 +63,6 @@ func (c *Client) buildURL(path string) string {
 	// Ensure path starts with /
 	if !strings.HasPrefix(path, "/") {
 		path = "/" + path
-	}
-	// Insert account into path if not present
-	if c.Account != "" {
-		accountPrefix := "/" + c.Account + "/"
-		if !strings.HasPrefix(path, accountPrefix) && path != "/"+c.Account {
-			path = "/" + c.Account + path
-		}
 	}
 	return c.BaseURL + path
 }
@@ -237,7 +228,7 @@ func (c *Client) request(method, path string, body any) (*APIResponse, error) {
 func (c *Client) setHeaders(req *http.Request) {
 	req.Header.Set("Authorization", "Bearer "+c.Token)
 	req.Header.Set("Accept", "application/json")
-	req.Header.Set("User-Agent", "fizzy-cli/1.0")
+	req.Header.Set("User-Agent", "ponto-cli/1.0")
 }
 
 func (c *Client) sleep(d time.Duration) {
@@ -646,7 +637,7 @@ func (c *Client) DownloadFile(urlPath string, destPath string) error {
 	}
 
 	req.Header.Set("Authorization", "Bearer "+c.Token)
-	req.Header.Set("User-Agent", "fizzy-cli/1.0")
+	req.Header.Set("User-Agent", "ponto-cli/1.0")
 
 	if c.Verbose {
 		fmt.Fprintf(os.Stderr, "> GET %s\n", requestURL)

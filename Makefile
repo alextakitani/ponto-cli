@@ -3,27 +3,27 @@
 	replace-check security check release-check release tools \
 	surface-snapshot surface-check lint-actions
 
-BINARY := $(CURDIR)/bin/fizzy
-FIZZY_TEST_BINARY ?= $(BINARY)
+BINARY := $(CURDIR)/bin/ponto
+PONTO_TEST_BINARY ?= $(BINARY)
 
 # Load local test credentials if present, but refuse tracked local secret files.
 ifneq ($(shell git ls-files --error-unmatch .env.test >/dev/null 2>&1 && echo tracked),)
 $(error .env.test is tracked by Git. Remove it from version control and keep local secret files untracked)
 endif
 -include .env.test
-export FIZZY_TEST_TOKEN FIZZY_TEST_ACCOUNT FIZZY_TEST_API_URL FIZZY_TEST_BINARY
+export PONTO_TEST_TOKEN PONTO_TEST_PROFILE PONTO_TEST_API_URL PONTO_TEST_BINARY
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -X main.version=$(VERSION)
 
 # Test configuration (set these or export as environment variables)
-# export FIZZY_TEST_TOKEN=your-token
-# export FIZZY_TEST_ACCOUNT=your-account
+# export PONTO_TEST_TOKEN=your-token
+# export PONTO_TEST_API_URL=https://ponto.example.com
 
 # Default target — local CI gate
 .DEFAULT_GOAL := check
 
 help:
-	@echo "Fizzy CLI"
+	@echo "Ponto CLI"
 	@echo ""
 	@echo "Usage:"
 	@echo "  make build          Build the CLI"
@@ -56,18 +56,18 @@ help:
 	@echo "  make tools          Install dev tools"
 	@echo ""
 	@echo "Environment variables (required for e2e tests):"
-	@echo "  FIZZY_TEST_TOKEN        API token"
-	@echo "  FIZZY_TEST_ACCOUNT      Account slug"
-	@echo "  FIZZY_TEST_API_URL      API base URL (default: https://app.fizzy.do)"
-	@echo "  FIZZY_TEST_BINARY       Prebuilt binary path (optional)"
-	@echo "  FIZZY_E2E_KEEP_FIXTURE  Set to 1 to skip final fixture teardown"
-	@echo "  FIZZY_E2E_TEARDOWN_DELAY  Delay teardown by N seconds"
+	@echo "  PONTO_TEST_TOKEN        API token"
+	@echo "  PONTO_TEST_PROFILE      Named CLI profile (optional)"
+	@echo "  PONTO_TEST_API_URL      API base URL"
+	@echo "  PONTO_TEST_BINARY       Prebuilt binary path (optional)"
+	@echo "  PONTO_E2E_KEEP_FIXTURE  Set to 1 to skip final fixture teardown"
+	@echo "  PONTO_E2E_TEARDOWN_DELAY  Delay teardown by N seconds"
 	@echo ""
 	@echo "Examples:"
 	@echo "  make build"
 	@echo "  make test-unit"
-	@echo "  export FIZZY_TEST_TOKEN=your-token"
-	@echo "  export FIZZY_TEST_ACCOUNT=your-account"
+	@echo "  export PONTO_TEST_TOKEN=your-token"
+	@echo "  export PONTO_TEST_API_URL=https://ponto.example.com"
 	@echo "  make e2e"
 
 # Toolchain guard — fails fast when PATH go and GOROOT go disagree
@@ -86,7 +86,7 @@ check-toolchain:
 # Build CLI
 build: check-toolchain
 	@mkdir -p bin
-	go build -ldflags "$(LDFLAGS)" -o $(BINARY) ./cmd/fizzy
+	go build -ldflags "$(LDFLAGS)" -o $(BINARY) ./cmd/ponto
 
 # Run unit tests (no API required)
 test-unit: check-toolchain
@@ -94,8 +94,8 @@ test-unit: check-toolchain
 
 # Run e2e tests (requires API credentials)
 e2e: build
-	@if [ -z "$$FIZZY_TEST_TOKEN" ]; then echo "Error: FIZZY_TEST_TOKEN not set"; exit 1; fi
-	@if [ -z "$$FIZZY_TEST_ACCOUNT" ]; then echo "Error: FIZZY_TEST_ACCOUNT not set"; exit 1; fi
+	@if [ -z "$$PONTO_TEST_TOKEN" ]; then echo "Error: PONTO_TEST_TOKEN not set"; exit 1; fi
+	@if [ -z "$$PONTO_TEST_API_URL" ]; then echo "Error: PONTO_TEST_API_URL not set"; exit 1; fi
 	go test -v -count=1 -timeout 10m ./e2e/cli_tests/...
 
 test-e2e: e2e
@@ -106,8 +106,8 @@ test-go: e2e
 # Run a single test file (e.g., make e2e-file FILE=crud_board)
 e2e-file: build
 	@if [ -z "$(FILE)" ]; then echo "Usage: make e2e-file FILE=crud_board"; exit 1; fi
-	@if [ -z "$$FIZZY_TEST_TOKEN" ]; then echo "Error: FIZZY_TEST_TOKEN not set"; exit 1; fi
-	@if [ -z "$$FIZZY_TEST_ACCOUNT" ]; then echo "Error: FIZZY_TEST_ACCOUNT not set"; exit 1; fi
+	@if [ -z "$$PONTO_TEST_TOKEN" ]; then echo "Error: PONTO_TEST_TOKEN not set"; exit 1; fi
+	@if [ -z "$$PONTO_TEST_API_URL" ]; then echo "Error: PONTO_TEST_API_URL not set"; exit 1; fi
 	go test -v -count=1 ./e2e/cli_tests/$(FILE)_test.go
 
 test-file: e2e-file
@@ -115,8 +115,8 @@ test-file: e2e-file
 # Run a single test by name (e.g., make e2e-run NAME=TestBoardList)
 e2e-run: build
 	@if [ -z "$(NAME)" ]; then echo "Usage: make e2e-run NAME=TestBoardList"; exit 1; fi
-	@if [ -z "$$FIZZY_TEST_TOKEN" ]; then echo "Error: FIZZY_TEST_TOKEN not set"; exit 1; fi
-	@if [ -z "$$FIZZY_TEST_ACCOUNT" ]; then echo "Error: FIZZY_TEST_ACCOUNT not set"; exit 1; fi
+	@if [ -z "$$PONTO_TEST_TOKEN" ]; then echo "Error: PONTO_TEST_TOKEN not set"; exit 1; fi
+	@if [ -z "$$PONTO_TEST_API_URL" ]; then echo "Error: PONTO_TEST_API_URL not set"; exit 1; fi
 	go test -v -count=1 -run $(NAME) ./e2e/cli_tests/...
 
 test-run: e2e-run

@@ -17,11 +17,10 @@ type quickStartResponse struct {
 type quickStartAuthInfo struct {
 	Status  string `json:"status"`
 	Profile string `json:"profile,omitempty"`
-	Account string `json:"account,omitempty"`
 }
 
 type quickStartContextInfo struct {
-	Board string `json:"board,omitempty"`
+	APIURL string `json:"api_url,omitempty"`
 }
 
 type quickStartCommandsInfo struct {
@@ -39,8 +38,8 @@ func runRootDefault(cmd *cobra.Command, args []string) error {
 		auth.Profile = cfgProfile
 	}
 	if cfg != nil {
-		if cfg.Account != "" {
-			auth.Account = cfg.Account
+		if cfg.Profile != "" {
+			auth.Profile = cfg.Profile
 		}
 		if cfg.Token != "" {
 			auth.Status = "authenticated"
@@ -48,8 +47,8 @@ func runRootDefault(cmd *cobra.Command, args []string) error {
 	}
 
 	context := quickStartContextInfo{}
-	if cfg != nil && cfg.Board != "" {
-		context.Board = cfg.Board
+	if cfg != nil && cfg.APIURL != "" {
+		context.APIURL = cfg.APIURL
 	}
 
 	resp := quickStartResponse{
@@ -57,28 +56,23 @@ func runRootDefault(cmd *cobra.Command, args []string) error {
 		Auth:    auth,
 		Context: context,
 		Commands: quickStartCommandsInfo{
-			QuickStart: []string{"fizzy doctor", "fizzy config show", "fizzy board list", "fizzy card list", `fizzy search "query"`},
-			Common:     []string{"fizzy auth status", "fizzy config explain", "fizzy doctor", "fizzy board list", "fizzy card show 42"},
+			QuickStart: []string{"ponto setup", "ponto doctor", "ponto config show", "ponto commands"},
+			Common:     []string{"ponto auth status", "ponto auth list", "ponto config explain", "ponto version"},
 		},
 	}
 
-	summary := fmt.Sprintf("fizzy %s - not logged in", currentVersion())
+	summary := fmt.Sprintf("ponto %s - not logged in", currentVersion())
 	if auth.Status == "authenticated" {
-		summary = fmt.Sprintf("fizzy %s - logged in", currentVersion())
-		if auth.Account != "" {
-			summary += " @ " + auth.Account
-		}
+		summary = fmt.Sprintf("ponto %s - logged in", currentVersion())
 	}
 	if auth.Profile != "" {
 		summary += fmt.Sprintf(" (profile: %s)", auth.Profile)
 	}
 
 	breadcrumbs := []Breadcrumb{
-		breadcrumb("doctor", "fizzy doctor", "Check CLI health"),
-		breadcrumb("config", "fizzy config show", "Show the effective config"),
-		breadcrumb("list_boards", "fizzy board list", "List boards"),
-		breadcrumb("list_cards", "fizzy card list", "List cards"),
-		breadcrumb("search_cards", `fizzy search "query"`, "Search cards"),
+		breadcrumb("doctor", "ponto doctor", "Check CLI health"),
+		breadcrumb("config", "ponto config show", "Show the effective config"),
+		breadcrumb("commands", "ponto commands", "List available commands"),
 	}
 	if auth.Status == "unauthenticated" {
 		breadcrumbs = append(breadcrumbs, breadcrumb("authenticate", authLoginHint(), "Authenticate"))
@@ -89,7 +83,7 @@ func runRootDefault(cmd *cobra.Command, args []string) error {
 }
 
 func authLoginHint() string {
-	parts := []string{"fizzy", "auth", "login", "<token>"}
+	parts := []string{"ponto", "auth", "login", "<token>"}
 	if strings.TrimSpace(cfgProfile) != "" {
 		parts = append(parts, "--profile", cfgProfile)
 	}

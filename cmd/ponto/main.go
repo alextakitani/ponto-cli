@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/basecamp/fizzy-cli/internal/commands"
+	"github.com/alextakitani/ponto-cli/internal/commands"
 	"runtime/debug"
 )
 

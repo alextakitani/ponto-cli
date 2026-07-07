@@ -1,4 +1,4 @@
-# Releasing fizzy-cli
+# Releasing ponto-cli
 
 ## Quick Release
 
@@ -17,8 +17,8 @@ Pushing the tag triggers the GitHub Actions release workflow, which:
 4. Signs checksums with a cosign keyless bundle (OIDC)
 5. Generates SBOMs with Syft
 6. Builds .deb and .rpm packages
-7. For stable tags only, publishes the Homebrew cask to `basecamp/homebrew-tap`
-8. For stable tags only, publishes the Scoop manifest to `basecamp/homebrew-tap`
+7. For stable tags only, publishes the Homebrew cask to `alextakitani/homebrew-tap`
+8. For stable tags only, publishes the Scoop manifest to `alextakitani/homebrew-tap`
 9. For stable tags only, publishes to AUR (if `AUR_KEY` configured)
 
 ## Versioning
@@ -42,12 +42,12 @@ Prerelease behavior is intentionally conservative so existing package-manager us
 | GitHub Releases | Published as a normal release and eligible to be GitHub's latest release. | Published as a GitHub prerelease and explicitly not marked latest. |
 | Release assets | Binaries, archives, checksums, SBOMs, `.deb`, and `.rpm` artifacts are uploaded. | Same artifacts are uploaded for explicit tester download/install. |
 | curl installer | Installs `v4.0.0` once GitHub marks it latest. | Does not install the prerelease via `releases/latest`; testers must download assets explicitly. |
-| Homebrew | Updates the normal `basecamp/tap/fizzy` cask. `brew upgrade fizzy` can move users to `v4.0.0`. | Does not update the normal cask (`skip_upload: auto`). Existing `brew upgrade fizzy` users stay on the latest stable cask. |
-| Scoop | Updates the normal `fizzy` manifest. `scoop update fizzy` can move users to `v4.0.0`. | Does not update the normal manifest (`skip_upload: auto`). Existing Scoop users stay on the latest stable manifest. |
-| AUR | Updates the normal `fizzy-cli` package if `AUR_KEY` is configured. | Skips the AUR publish job. Existing AUR users stay on the latest stable package. |
+| Homebrew | Updates the normal `alextakitani/tap/ponto` cask. `brew upgrade ponto` can move users to `v4.0.0`. | Does not update the normal cask (`skip_upload: auto`). Existing `brew upgrade ponto` users stay on the latest stable cask. |
+| Scoop | Updates the normal `ponto` manifest. `scoop update ponto` can move users to `v4.0.0`. | Does not update the normal manifest (`skip_upload: auto`). Existing Scoop users stay on the latest stable manifest. |
+| AUR | Updates the normal `ponto-cli` package if `AUR_KEY` is configured. | Skips the AUR publish job. Existing AUR users stay on the latest stable package. |
 | Go install | The git tag exists for users who explicitly request it. | The prerelease tag exists for users who explicitly request it; no package-manager manifest is updated. |
 
-Technical testers can install prereleases explicitly from the GitHub release assets, for example by downloading the asset for their OS/architecture from `https://github.com/basecamp/fizzy-cli/releases/tag/v4.0.0-beta1`.
+Technical testers can install prereleases explicitly from the GitHub release assets, for example by downloading the asset for their OS/architecture from `https://github.com/alextakitani/ponto-cli/releases/tag/v4.0.0-beta1`.
 
 ## CI Secrets
 
@@ -73,11 +73,11 @@ Technical testers can install prereleases explicitly from the GitHub release ass
 
 | Channel | Location | Updated by |
 |---------|----------|------------|
-| GitHub Releases | `basecamp/fizzy-cli/releases` | GoReleaser |
-| Homebrew | `basecamp/homebrew-tap` Casks/fizzy.rb | GoReleaser (stable tags only) |
-| Scoop | `basecamp/homebrew-tap` fizzy.json | GoReleaser (stable tags only) |
-| AUR | `aur.archlinux.org/packages/fizzy-cli` | `publish-aur.sh` (stable tags only) |
-| Go install | `go install github.com/basecamp/fizzy-cli/cmd/fizzy@latest` | Go module proxy |
+| GitHub Releases | `alextakitani/ponto-cli/releases` | GoReleaser |
+| Homebrew | `alextakitani/homebrew-tap` Casks/ponto.rb | GoReleaser (stable tags only) |
+| Scoop | `alextakitani/homebrew-tap` ponto.json | GoReleaser (stable tags only) |
+| AUR | `aur.archlinux.org/packages/ponto-cli` | `publish-aur.sh` (stable tags only) |
+| Go install | `go install github.com/alextakitani/ponto-cli/cmd/ponto@latest` | Go module proxy |
 | curl installer | `scripts/install.sh` | Manual |
 
 ## Dry Run
@@ -87,12 +87,12 @@ Technical testers can install prereleases explicitly from the GitHub release ass
 make release VERSION=v4.0.0 DRY_RUN=1
 
 # GoReleaser snapshot (local build test — generate completions first)
-go build -o fizzy-tmp ./cmd/fizzy
+go build -o ponto-tmp ./cmd/ponto
 mkdir -p completions
-./fizzy-tmp completion bash > completions/fizzy.bash
-./fizzy-tmp completion zsh > completions/fizzy.zsh
-./fizzy-tmp completion fish > completions/fizzy.fish
-rm fizzy-tmp
+./ponto-tmp completion bash > completions/ponto.bash
+./ponto-tmp completion zsh > completions/ponto.zsh
+./ponto-tmp completion fish > completions/ponto.fish
+rm ponto-tmp
 goreleaser release --snapshot --clean
 ```
 
@@ -100,4 +100,4 @@ goreleaser release --snapshot --clean
 
 1. Generate ed25519 SSH keypair: `ssh-keygen -t ed25519 -f aur_key`
 2. Add public key to your AUR account profile
-3. Add private key as `AUR_KEY` secret on the fizzy-cli repo
+3. Add private key as `AUR_KEY` secret on the ponto-cli repo

@@ -1,4 +1,4 @@
-// Package config handles configuration loading for the Fizzy CLI.
+// Package config handles configuration loading for the Ponto CLI.
 package config
 
 import (
@@ -12,15 +12,12 @@ import (
 )
 
 const (
-	// DefaultAPIURL is the default Fizzy API URL.
-	DefaultAPIURL = "https://app.fizzy.do"
-
 	// LocalConfigFile is the name of the local project config file.
-	LocalConfigFile = ".fizzy.yaml"
+	LocalConfigFile = ".ponto.yaml"
 )
 
 // testConfigDir is used to override global config directory for testing.
-// When set, all global config operations use this directory instead of ~/.fizzy
+// When set, all global config operations use this directory instead of ~/.ponto
 var testConfigDir string
 
 // testWorkingDir is used to override working directory for testing local config.
@@ -48,10 +45,9 @@ func ResetTestWorkingDir() {
 
 // Config holds the CLI configuration.
 type Config struct {
-	Token   string `yaml:"token"`
-	Account string `yaml:"account"`
-	APIURL  string `yaml:"api_url"`
-	Board   string `yaml:"board"`
+	Token   string `yaml:"token,omitempty"`
+	Profile string `yaml:"profile,omitempty"`
+	APIURL  string `yaml:"api_url,omitempty"`
 }
 
 // globalConfigPaths returns the possible global configuration file paths in order of preference.
@@ -64,8 +60,8 @@ func globalConfigPaths() []string {
 		return nil
 	}
 	return []string{
-		filepath.Join(home, ".config", "fizzy", "config.yaml"),
-		filepath.Join(home, ".fizzy", "config.yaml"),
+		filepath.Join(home, ".config", "ponto", "config.yaml"),
+		filepath.Join(home, ".ponto", "config.yaml"),
 	}
 }
 
@@ -77,7 +73,7 @@ func GlobalConfigPaths() []string {
 	return out
 }
 
-// findLocalConfig walks up the directory tree looking for .fizzy.yaml
+// findLocalConfig walks up the directory tree looking for .ponto.yaml
 func findLocalConfig() string {
 	var startDir string
 	if testWorkingDir != "" {
@@ -108,27 +104,24 @@ func findLocalConfig() string {
 	return ""
 }
 
-// Load loads configuration from files, environment variables, and defaults.
+// Load loads configuration from files and environment variables.
 // Full precedence (highest to lowest):
 //
-//  1. CLI flags (--token, --profile, --api-url, --board)
-//  2. Environment variables (FIZZY_TOKEN, FIZZY_PROFILE, FIZZY_API_URL, FIZZY_BOARD)
-//  3. Named profile settings (BaseURL, board from config.json)
-//  4. Local project config (.fizzy.yaml)
-//  5. Global config (~/.config/fizzy/config.yaml)
-//  6. Defaults
+//  1. CLI flags (--token, --profile, --api-url)
+//  2. Environment variables (PONTO_TOKEN, PONTO_PROFILE, PONTO_API_URL)
+//  3. Named profile settings (BaseURL)
+//  4. Local project config (.ponto.yaml)
+//  5. Global config (~/.config/ponto/config.yaml)
 //
-// Load() handles layers 2, 4, 5, and 6. Profile resolution (layer 3) and flag
+// Load() handles layers 2, 4, and 5. Profile resolution (layer 3) and flag
 // application (layer 1) happen afterward in root.go's PersistentPreRunE.
 // Because profiles outrank local/global config, resolveProfile() intentionally
 // overwrites values that Load() set from YAML — but preserves env var values.
 //
-// Local config (.fizzy.yaml) is searched for in the current directory and parent
+// Local config (.ponto.yaml) is searched for in the current directory and parent
 // directories. Values from local config override global config values.
 func Load() *Config {
-	cfg := &Config{
-		APIURL: DefaultAPIURL,
-	}
+	cfg := &Config{}
 
 	// Load from global config file first
 	for _, path := range globalConfigPaths() {
@@ -147,31 +140,25 @@ func Load() *Config {
 				if localCfg.Token != "" {
 					cfg.Token = localCfg.Token
 				}
-				if localCfg.Account != "" {
-					cfg.Account = localCfg.Account
+				if localCfg.Profile != "" {
+					cfg.Profile = localCfg.Profile
 				}
 				if localCfg.APIURL != "" {
 					cfg.APIURL = localCfg.APIURL
-				}
-				if localCfg.Board != "" {
-					cfg.Board = localCfg.Board
 				}
 			}
 		}
 	}
 
 	// Override with environment variables
-	if token := os.Getenv("FIZZY_TOKEN"); token != "" {
+	if token := os.Getenv("PONTO_TOKEN"); token != "" {
 		cfg.Token = token
 	}
-	if account := os.Getenv("FIZZY_ACCOUNT"); account != "" {
-		cfg.Account = account
+	if profile := os.Getenv("PONTO_PROFILE"); profile != "" {
+		cfg.Profile = profile
 	}
-	if apiURL := os.Getenv("FIZZY_API_URL"); apiURL != "" {
+	if apiURL := os.Getenv("PONTO_API_URL"); apiURL != "" {
 		cfg.APIURL = apiURL
-	}
-	if board := os.Getenv("FIZZY_BOARD"); board != "" {
-		cfg.Board = board
 	}
 
 	ensureAPIURL(cfg)
@@ -181,9 +168,7 @@ func Load() *Config {
 // LoadGlobal loads configuration only from the global config file(s) and defaults.
 // It does not apply local project config or environment variables.
 func LoadGlobal() *Config {
-	cfg := &Config{
-		APIURL: DefaultAPIURL,
-	}
+	cfg := &Config{}
 	for _, path := range globalConfigPaths() {
 		if data, err := os.ReadFile(path); err == nil {
 			_ = yaml.Unmarshal(data, cfg)
@@ -198,12 +183,10 @@ func ensureAPIURL(cfg *Config) {
 	if cfg == nil {
 		return
 	}
-	if strings.TrimSpace(cfg.APIURL) == "" {
-		cfg.APIURL = DefaultAPIURL
-	}
+	cfg.APIURL = strings.TrimSpace(cfg.APIURL)
 
 	// Warn about non-HTTPS URLs (except localhost/loopback for development)
-	if strings.HasPrefix(cfg.APIURL, "http://") {
+	if cfg.APIURL != "" && strings.HasPrefix(cfg.APIURL, "http://") {
 		if u, err := url.Parse(cfg.APIURL); err == nil {
 			host := u.Hostname() // strips port and IPv6 brackets
 			if host != "localhost" && host != "127.0.0.1" && host != "::1" {
@@ -238,7 +221,7 @@ func ConfigPath() (string, error) {
 	return preferred, nil
 }
 
-// StateDir returns the directory where Fizzy stores command state.
+// StateDir returns the directory where Ponto stores command state.
 func StateDir() (string, error) {
 	if testConfigDir != "" {
 		if err := os.MkdirAll(testConfigDir, 0o700); err != nil {
@@ -255,7 +238,7 @@ func StateDir() (string, error) {
 		}
 		base = filepath.Join(home, ".local", "state")
 	}
-	dir := filepath.Join(base, "fizzy")
+	dir := filepath.Join(base, "ponto")
 	if err := os.MkdirAll(dir, 0o700); err != nil {
 		return "", err
 	}
@@ -308,7 +291,7 @@ func LocalConfigPath() string {
 	return findLocalConfig()
 }
 
-// SaveLocal saves the configuration to a local .fizzy.yaml file in the current directory.
+// SaveLocal saves the configuration to a local .ponto.yaml file in the current directory.
 func (c *Config) SaveLocal() error {
 	var dir string
 	if testWorkingDir != "" {

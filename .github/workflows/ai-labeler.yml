@@ -28,7 +28,7 @@ jobs:
       prompt-file: .github/prompts/detect-breaking.prompt.yml
       file-patterns: |
         internal/commands/*.go
-        cmd/fizzy/main.go
+        cmd/ponto/main.go
     permissions:
       contents: read
       issues: write

@@ -6,7 +6,7 @@ import (
 	"io"
 	"os"
 
-	"github.com/basecamp/fizzy-cli/internal/errors"
+	"github.com/alextakitani/ponto-cli/internal/errors"
 	"github.com/itchyny/gojq"
 )
 

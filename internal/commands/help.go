@@ -13,7 +13,7 @@ import (
 	"github.com/spf13/pflag"
 )
 
-const helpGroupAnnotation = "fizzy.help.group"
+const helpGroupAnnotation = "ponto.help.group"
 
 var cliUXConfigured bool
 
@@ -116,9 +116,9 @@ func renderRootHelp(cmd *cobra.Command, w io.Writer) {
 
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "LEARN MORE")
-	fmt.Fprintln(w, "  Use `fizzy commands` to see the full command catalog.")
-	fmt.Fprintln(w, "  Use `fizzy <command> --help` for more information about a command.")
-	fmt.Fprintln(w, "  Use `fizzy commands --json` for a structured command catalog.")
+	fmt.Fprintln(w, "  Use `ponto commands` to see the full command catalog.")
+	fmt.Fprintln(w, "  Use `ponto <command> --help` for more information about a command.")
+	fmt.Fprintln(w, "  Use `ponto commands --json` for a structured command catalog.")
 }
 
 func renderCommandHelp(cmd *cobra.Command, w io.Writer) {
@@ -186,16 +186,15 @@ func renderCommandHelp(cmd *cobra.Command, w io.Writer) {
 
 	fmt.Fprintln(w)
 	fmt.Fprintln(w, "LEARN MORE")
-	fmt.Fprintf(w, "  Use `fizzy %s --help` for more information about this command.\n", strings.TrimPrefix(cmd.CommandPath(), "fizzy "))
+	fmt.Fprintf(w, "  Use `ponto %s --help` for more information about this command.\n", strings.TrimPrefix(cmd.CommandPath(), "ponto "))
 }
 
 func setRootHelpMetadata(cmd *cobra.Command) {
 	cmd.Example = strings.Join([]string{
-		"$ fizzy auth status",
-		"$ fizzy doctor",
-		"$ fizzy board list",
-		"$ fizzy card show 42",
-		"$ fizzy search \"billing bug\"",
+		"$ ponto auth status",
+		"$ ponto doctor",
+		"$ ponto config show",
+		"$ ponto commands --json",
 	}, "\n")
 }
 
@@ -369,97 +368,61 @@ func printExampleBlock(w io.Writer, example string) {
 	}
 }
 
-var rootCommandGroupsOrder = []string{"core", "collaboration", "getting-started", "discover"}
+var rootCommandGroupsOrder = []string{"core", "getting-started", "discover"}
 
 var rootCommandGroupTitles = map[string]string{
 	"core":            "CORE COMMANDS",
-	"collaboration":   "COLLABORATION",
 	"getting-started": "GETTING STARTED",
 	"discover":        "DISCOVER",
 }
 
 var rootCommandGroups = map[string][]string{
-	"core":            {"auth", "token", "activity", "board", "card", "search"},
-	"collaboration":   {"comment", "notification"},
-	"getting-started": {"setup", "signup"},
-	"discover":        {"doctor", "config", "commands", "version"},
+	"core":            {"auth"},
+	"getting-started": {"setup"},
+	"discover":        {"doctor", "config", "commands", "skill", "completion", "version"},
 }
 
 var commandExamples = map[string]string{
-	"fizzy auth":              "$ fizzy auth status\n$ fizzy auth login TOKEN --profile acme",
-	"fizzy auth status":       "$ fizzy auth status",
-	"fizzy auth list":         "$ fizzy auth list\n$ fizzy auth switch acme",
-	"fizzy activity":          "$ fizzy activity list\n$ fizzy activity list --board <id>",
-	"fizzy activity list":     "$ fizzy activity list --board <id>\n$ fizzy activity list --creator <user_id>",
-	"fizzy board":             "$ fizzy board list\n$ fizzy board show <id>",
-	"fizzy board list":        "$ fizzy board list\n$ fizzy board list --page 2",
-	"fizzy board show":        "$ fizzy board show <id>",
-	"fizzy card":              "$ fizzy card list --board <id>\n$ fizzy card show <number>",
-	"fizzy card list":         "$ fizzy card list --board <id>\n$ fizzy card list --board <id> --all",
-	"fizzy card show":         "$ fizzy card show <number>",
-	"fizzy card create":       "$ fizzy card create --board <id> --title \"Fix billing bug\"",
-	"fizzy comment list":      "$ fizzy comment list --card <number>",
-	"fizzy comment create":    "$ fizzy comment create --card <number> --body \"Looks good\"",
-	"fizzy commands":          "$ fizzy commands\n$ fizzy commands --json",
-	"fizzy config":            "$ fizzy config show\n$ fizzy config explain",
-	"fizzy config show":       "$ fizzy config show\n$ fizzy config show --verbose",
-	"fizzy config explain":    "$ fizzy config explain\n$ fizzy config explain --profile acme",
-	"fizzy doctor":            "$ fizzy doctor\n$ fizzy doctor --profile acme\n$ fizzy doctor --all-profiles",
-	"fizzy search":            "$ fizzy search \"billing bug\"\n$ fizzy search <card-id>",
-	"fizzy notification":      "$ fizzy notification tray\n$ fizzy notification list",
-	"fizzy notification tray": "$ fizzy notification tray",
-	"fizzy user":              "$ fizzy user list\n$ fizzy user show <id>",
-	"fizzy user list":         "$ fizzy user list\n$ fizzy user list --all",
-	"fizzy setup":             "$ fizzy setup",
-	"fizzy signup":            "$ fizzy signup start --email you@example.com",
-	"fizzy version":           "$ fizzy version",
+	"ponto auth":           "$ ponto auth status\n$ ponto auth login TOKEN --profile acme",
+	"ponto auth status":    "$ ponto auth status",
+	"ponto auth list":      "$ ponto auth list\n$ ponto auth switch acme",
+	"ponto commands":       "$ ponto commands\n$ ponto commands --json",
+	"ponto config":         "$ ponto config show\n$ ponto config explain",
+	"ponto config show":    "$ ponto config show\n$ ponto config show --verbose",
+	"ponto config explain": "$ ponto config explain\n$ ponto config explain --profile acme",
+	"ponto doctor":         "$ ponto doctor\n$ ponto doctor --profile acme\n$ ponto doctor --all-profiles",
+	"ponto setup":          "$ ponto setup",
+	"ponto skill":          "$ ponto skill\n$ ponto skill install",
+	"ponto version":        "$ ponto version",
 }
 
 var relatedCommands = map[string][]helpLink{
-	"fizzy auth": {
-		{Command: "fizzy identity show", Description: "View your identity and accessible accounts"},
-		{Command: "fizzy doctor", Description: "Run a full health check after logging in"},
-		{Command: "fizzy board list", Description: "List boards after logging in"},
+	"ponto auth": {
+		{Command: "ponto doctor", Description: "Run a full health check after logging in"},
+		{Command: "ponto auth list", Description: "List saved profiles"},
 	},
-	"fizzy auth status": {
-		{Command: "fizzy doctor", Description: "Run a full CLI health check"},
-		{Command: "fizzy identity show", Description: "View your identity"},
-		{Command: "fizzy auth list", Description: "List saved profiles"},
+	"ponto auth status": {
+		{Command: "ponto doctor", Description: "Run a full CLI health check"},
+		{Command: "ponto auth list", Description: "List saved profiles"},
 	},
-	"fizzy board": {
-		{Command: "fizzy card list --board <id>", Description: "List cards on a board"},
-		{Command: "fizzy column list --board <id>", Description: "List columns on a board"},
+	"ponto config": {
+		{Command: "ponto config show", Description: "Show the effective configuration"},
+		{Command: "ponto config explain", Description: "Explain config precedence"},
+		{Command: "ponto auth list", Description: "List saved profiles"},
 	},
-	"fizzy board show": {
-		{Command: "fizzy card list --board <id>", Description: "List cards on this board"},
-		{Command: "fizzy column list --board <id>", Description: "List columns on this board"},
+	"ponto config show": {
+		{Command: "ponto config explain", Description: "Explain why these values won"},
+		{Command: "ponto doctor", Description: "Run a full health check"},
 	},
-	"fizzy card": {
-		{Command: "fizzy search \"query\"", Description: "Search cards by text"},
-		{Command: "fizzy comment list --card <number>", Description: "List comments on a card"},
+	"ponto config explain": {
+		{Command: "ponto config show", Description: "Show only the effective values"},
+		{Command: "ponto auth list", Description: "List saved profiles"},
+		{Command: "ponto doctor", Description: "Run a full health check"},
 	},
-	"fizzy search": {
-		{Command: "fizzy card list --board <id>", Description: "Browse cards on a board"},
-		{Command: "fizzy card show <number>", Description: "Show a matching card"},
-	},
-	"fizzy config": {
-		{Command: "fizzy config show", Description: "Show the effective configuration"},
-		{Command: "fizzy config explain", Description: "Explain config precedence"},
-		{Command: "fizzy auth list", Description: "List saved profiles"},
-	},
-	"fizzy config show": {
-		{Command: "fizzy config explain", Description: "Explain why these values won"},
-		{Command: "fizzy doctor", Description: "Run a full health check"},
-	},
-	"fizzy config explain": {
-		{Command: "fizzy config show", Description: "Show only the effective values"},
-		{Command: "fizzy auth list", Description: "List saved profiles"},
-		{Command: "fizzy doctor", Description: "Run a full health check"},
-	},
-	"fizzy doctor": {
-		{Command: "fizzy auth status", Description: "Check current authentication state"},
-		{Command: "fizzy config explain", Description: "Explain config precedence"},
-		{Command: "fizzy identity show", Description: "Verify identity and accessible accounts"},
-		{Command: "fizzy setup", Description: "Repair or re-run interactive setup"},
+	"ponto doctor": {
+		{Command: "ponto auth status", Description: "Check current authentication state"},
+		{Command: "ponto config explain", Description: "Explain config precedence"},
+		{Command: "ponto commands", Description: "List available commands"},
+		{Command: "ponto setup", Description: "Repair or re-run interactive setup"},
 	},
 }

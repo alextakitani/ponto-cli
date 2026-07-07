@@ -56,13 +56,11 @@ pronta — Q73, todo resource de domínio responde JSON nas mesmas rotas via
 - `entry list / show / create / update / delete`
 - Catálogo: `client` / `project` / `task` / `tag` — cada um com
   `list / show / create / update / archive / unarchive`.
-  ⚠️ `archive`/`unarchive` estão ADIADOS no v0: os endpoints de archival do
-  app são HTML-only hoje (gap vs Q73 — ver [api.md](api.md), seção Gaps);
-  entram assim que o app expuser `format.json` neles.
+- `export` — o app já expõe `GET /reports/export.{csv,xlsx}` via Bearer
+  (gap de 07/07 resolvido no mesmo dia — ver [api.md](api.md)).
 - Infra (vem do fork em qualquer cenário): `setup`, `doctor`, `commands`,
   skill do Claude.
-- `report` / `export` chegam quando o app os expuser em JSON (fim da ordem
-  Q39 do app) — export baixando xlsx/CSV por CLI é caso de uso desejado.
+- `report` (agregados JSON) chega quando o app expuser report em JSON.
 
 **Fora da superfície da API** (Q73): auth de browser (magic-code é fluxo
 humano), admin (só-web), import (upload raro, só-web).

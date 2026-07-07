@@ -8,9 +8,9 @@ AI agents (ships with a Claude skill). Structural fork of
 [fizzy-cli](https://github.com/basecamp/fizzy-cli) (MIT).
 
 > **Status: em desenvolvimento** — primeiro corte de comandos (Q75):
-> `timer` · `entry` · `client` / `project` / `task` / `tag` · `setup` /
-> `doctor` / `commands`. `report`/`export` e `archive`/`unarchive` chegam
-> quando o app os expuser em JSON (ver docs/api.md, seção Gaps).
+> `timer` · `entry` · `client` / `project` / `task` / `tag` (CRUD +
+> archive/unarchive) · `export` (CSV/Excel) · `setup` / `doctor` /
+> `commands`. `report` (agregados JSON) chega quando o app o expuser.
 
 ## Quick start
 

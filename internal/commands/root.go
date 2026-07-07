@@ -1,4 +1,4 @@
-// Package commands implements CLI commands for the Fizzy CLI.
+// Package commands implements CLI commands for the Ponto CLI.
 package commands
 
 import (
@@ -7,21 +7,19 @@ import (
 	stderrors "errors"
 	"fmt"
 	"io"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"reflect"
 	"sort"
 	"strings"
 
+	"github.com/alextakitani/ponto-cli/internal/client"
+	"github.com/alextakitani/ponto-cli/internal/config"
+	"github.com/alextakitani/ponto-cli/internal/errors"
+	"github.com/alextakitani/ponto-cli/internal/render"
 	"github.com/basecamp/cli/credstore"
 	"github.com/basecamp/cli/output"
 	"github.com/basecamp/cli/profile"
-	"github.com/basecamp/fizzy-cli/internal/client"
-	"github.com/basecamp/fizzy-cli/internal/config"
-	"github.com/basecamp/fizzy-cli/internal/errors"
-	"github.com/basecamp/fizzy-cli/internal/render"
-	fizzy "github.com/basecamp/fizzy-sdk/go/pkg/fizzy"
 	"github.com/itchyny/gojq"
 	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
@@ -52,10 +50,6 @@ var (
 	// Client factory (can be overridden for testing)
 	clientFactory func() client.API
 
-	// SDK client
-	sdk        *fizzy.Client
-	sdkAccount func() *fizzy.AccountClient
-
 	// Credential store
 	creds *credstore.Store
 
@@ -71,9 +65,9 @@ var cliVersion = "dev"
 
 // rootCmd represents the base command.
 var rootCmd = &cobra.Command{
-	Use:     "fizzy",
-	Short:   "Fizzy CLI - Command-line interface for the Fizzy API",
-	Long:    `Command-line interface for Fizzy`,
+	Use:     "ponto",
+	Short:   "Ponto CLI - Command-line interface for the Ponto API",
+	Long:    `Command-line interface for Ponto`,
 	Version: "dev",
 	RunE:    runRootDefault,
 	PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
@@ -131,11 +125,11 @@ var rootCmd = &cobra.Command{
 			if cfgPath, err := config.ConfigPath(); err == nil {
 				fallbackDir = filepath.Join(filepath.Dir(cfgPath), "credentials")
 			} else if home, err := os.UserHomeDir(); err == nil {
-				fallbackDir = filepath.Join(home, ".config", "fizzy", "credentials")
+				fallbackDir = filepath.Join(home, ".config", "ponto", "credentials")
 			}
 			creds = credstore.NewStore(credstore.StoreOptions{
-				ServiceName:   "fizzy",
-				DisableEnvVar: "FIZZY_NO_KEYRING",
+				ServiceName:   "ponto",
+				DisableEnvVar: "PONTO_NO_KEYRING",
 				FallbackDir:   fallbackDir,
 			})
 		}
@@ -157,18 +151,9 @@ var rootCmd = &cobra.Command{
 			cfg.APIURL = cfgAPIURL
 		}
 
-		// FIZZY_DEBUG enables verbose output
-		if os.Getenv("FIZZY_DEBUG") != "" {
+		// PONTO_DEBUG enables verbose output
+		if os.Getenv("PONTO_DEBUG") != "" {
 			cfgVerbose = true
-		}
-
-		// Initialize SDK client (skip if already set by test mode)
-		if sdk == nil {
-			if err := initSDK(cmd, cfg.APIURL, cfg.Token, cfg.Account); err != nil {
-				// Non-fatal: commands that don't need the SDK (e.g. help, version) can proceed.
-				// Commands that call getSDK() will return the stored initialization error.
-				errSDKInit = err
-			}
 		}
 
 		startUpdateCheck()
@@ -400,63 +385,13 @@ func getClient() client.API {
 	if clientFactory != nil {
 		return clientFactory()
 	}
-	c := client.New(cfg.APIURL, cfg.Token, cfg.Account)
+	c := client.New(cfg.APIURL, cfg.Token)
 	c.Verbose = cfgVerbose
 	return c
 }
 
-// errSDKInit stores any error from SDK initialization so commands can return it.
-var errSDKInit error
-
-// getSDK returns an SDK AccountClient bound to the configured account.
-func getSDK() *fizzy.AccountClient {
-	return sdkAccount()
-}
-
-// getSDKClient returns the root SDK Client (for account-independent operations).
-func getSDKClient() *fizzy.Client {
-	return sdk
-}
-
-// requireSDK returns the SDK init error if the SDK failed to initialize.
-// Commands that use getSDK()/getSDKClient() should call this first.
-func requireSDK() error {
-	if errSDKInit != nil {
-		return errSDKInit
-	}
-	return nil
-}
-
-// initSDK creates the SDK client, guarding against panics from HTTPS validation.
-func initSDK(cmd *cobra.Command, apiURL, token, account string) (initErr error) {
-	defer func() {
-		if r := recover(); r != nil {
-			initErr = &output.Error{
-				Code:    output.CodeNetwork,
-				Message: fmt.Sprintf("Cannot initialize SDK: %v", r),
-				Hint:    "Non-localhost API URLs must use HTTPS. Update your config with 'fizzy setup'.",
-			}
-		}
-	}()
-
-	sdkCfg := &fizzy.Config{
-		BaseURL: apiURL,
-	}
-	var opts []fizzy.ClientOption
-	opts = append(opts, fizzy.WithUserAgent("fizzy-cli/"+cmd.Root().Version))
-	if cfgVerbose {
-		opts = append(opts, fizzy.WithHooks(fizzy.NewSlogHooks(slog.New(slog.NewTextHandler(os.Stderr, nil)))))
-	}
-	sdk = fizzy.NewClient(sdkCfg, &fizzy.StaticTokenProvider{Token: token}, opts...)
-	sdkAccount = func() *fizzy.AccountClient {
-		return sdk.ForAccount(account)
-	}
-	return nil
-}
-
 // normalizeAny converts any value to map[string]any or []map[string]any
-// via JSON round-trip. Handles typed structs (e.g. *generated.Board),
-// typed slices (e.g. []generated.Card), json.RawMessage, and plain
+// via JSON round-trip. Handles typed structs, typed slices, json.RawMessage, and plain
 // map/slice types that are already in the right shape.
 func normalizeAny(v any) any {
 	if v == nil {
@@ -526,56 +461,23 @@ func toSliceAny(v any) []any {
 	return nil
 }
 
-// parseSDKLinkNext extracts the next page URL from SDK response Link headers.
-func parseSDKLinkNext(resp *fizzy.Response) string {
-	if resp == nil {
-		return ""
-	}
-	linkHeader := resp.Headers.Get("Link")
-	if linkHeader == "" {
-		return ""
-	}
-	// Parse Link header for rel="next"
-	for _, part := range strings.Split(linkHeader, ",") {
-		part = strings.TrimSpace(part)
-		if strings.Contains(part, `rel="next"`) {
-			start := strings.Index(part, "<")
-			end := strings.Index(part, ">")
-			if start >= 0 && end > start {
-				return part[start+1 : end]
-			}
-		}
-	}
-	return ""
-}
-
 // requireAuth checks that we have authentication configured.
-// Does NOT require the SDK — legacy commands (upload, download, multipart)
-// only need a valid token and account, not an initialized SDK client.
 func requireAuth() error {
 	if cfg.Token == "" {
-		return errors.NewAuthError("No API token configured. Run 'fizzy auth login TOKEN' or set FIZZY_TOKEN")
+		return errors.NewAuthError("No API token configured. Run 'ponto auth login TOKEN' or set PONTO_TOKEN")
 	}
 	return nil
 }
 
-// requireAccount checks that we have an account configured.
-func requireAccount() error {
-	if cfg.Account == "" {
-		return errors.NewInvalidArgsError("No account configured. Set --profile flag, FIZZY_PROFILE, or run 'fizzy setup'")
-	}
-	return nil
-}
-
-// requireAuthAndAccount checks auth, account, and SDK initialization.
-func requireAuthAndAccount() error {
+// requireAPIConfig checks auth and the required self-hosted API URL.
+func requireAPIConfig() error {
 	if err := requireAuth(); err != nil {
 		return err
 	}
-	if err := requireAccount(); err != nil {
-		return err
+	if strings.TrimSpace(cfg.APIURL) == "" {
+		return errors.NewInvalidArgsError("No API URL configured. Run 'ponto setup' or set PONTO_API_URL")
 	}
-	return requireSDK()
+	return nil
 }
 
 func effectiveConfig() *config.Config {
@@ -583,21 +485,6 @@ func effectiveConfig() *config.Config {
 		return cfg
 	}
 	return config.Load()
-}
-
-func defaultBoard(board string) string {
-	if board != "" {
-		return board
-	}
-	return effectiveConfig().Board
-}
-
-func requireBoard(board string) (string, error) {
-	board = defaultBoard(board)
-	if board == "" {
-		return "", errors.NewInvalidArgsError("No board configured. Set --board, FIZZY_BOARD, or add 'board' to your config file")
-	}
-	return board, nil
 }
 
 // CommandResult holds the result of a command execution for testing.
@@ -681,7 +568,7 @@ func printSuccessWithLocationAndBreadcrumbs(data any, location string, breadcrum
 	captureResponse()
 }
 
-// defaultPageSize is the Fizzy API's default page size.
+// defaultPageSize is the Ponto API's default page size.
 const defaultPageSize = 20
 
 // checkLimitAll validates that --limit and --all are not both set.
@@ -1120,20 +1007,8 @@ func credsDeleteProfileToken(profileName string) error {
 	return creds.Delete(profile.CredentialKey(profileName, ""))
 }
 
-// credsLoadLegacyToken loads a token from a legacy credstore entry.
-// Checks both the old single "token" key and the account-scoped "token:<account>" key.
-func credsLoadLegacyToken(account string) (string, error) {
-	// Try account-scoped key first (from earlier multi-account PR)
-	if account != "" {
-		if data, err := creds.Load("token:" + account); err == nil {
-			var token string
-			if json.Unmarshal(data, &token) == nil {
-				return token, nil
-			}
-			return string(data), nil
-		}
-	}
-	// Then try bare "token" key (original single-key format)
+// credsLoadLegacyToken loads a token from a legacy bare credstore entry.
+func credsLoadLegacyToken() (string, error) {
 	data, err := creds.Load("token")
 	if err != nil {
 		return "", err
@@ -1146,38 +1021,35 @@ func credsLoadLegacyToken(account string) (string, error) {
 }
 
 // resolveProfile uses profile.Resolve() to determine the active profile,
-// then applies its BaseURL and board (from Extra) to cfg.
+// then applies its BaseURL to cfg.
 //
 // Profile settings (layer 3) outrank local and global YAML config (layers
 // 4–5) but yield to env vars (layer 2) and flags (layer 1). Because
 // config.Load() has already run, cfg may contain values from YAML config.
 // resolveProfile intentionally overwrites those with profile data:
 //
-//	profile BaseURL  → cfg.APIURL (unless FIZZY_API_URL env var is set)
-//	profile board    → cfg.Board  (unless FIZZY_BOARD env var is set)
+//	profile BaseURL  → cfg.APIURL (unless PONTO_API_URL env var is set)
 //
 // Returns an error when the user explicitly selected a profile (via flag
 // or env var) that doesn't exist — that must be a hard failure, not a
 // silent fallback to whatever was in the YAML config.
 func resolveProfile() error {
 	if profiles == nil {
-		// No profile store (test mode or init failure) — fall back to env var
-		if p := os.Getenv("FIZZY_PROFILE"); p != "" {
-			cfg.Account = p
+		if p := os.Getenv("PONTO_PROFILE"); p != "" {
+			cfg.Profile = p
 		}
 		return nil
 	}
 
 	allProfiles, defaultName, err := profiles.List()
 	if err != nil || len(allProfiles) == 0 {
-		// No profiles configured — fall back to env var for account
-		if v := profileEnvVar(); v != "" {
-			cfg.Account = v
+		if v := os.Getenv("PONTO_PROFILE"); v != "" {
+			cfg.Profile = v
 		}
 		return nil
 	}
 
-	envProfile := profileEnvVar()
+	envProfile := os.Getenv("PONTO_PROFILE")
 	resolved, err := profile.Resolve(profile.ResolveOptions{
 		FlagValue:      cfgProfile,
 		EnvVar:         envProfile,
@@ -1185,12 +1057,9 @@ func resolveProfile() error {
 		Profiles:       allProfiles,
 	})
 	if err != nil {
-		// If the user explicitly specified a profile (flag or env), that's a
-		// hard error — don't silently fall back to a different account.
 		if cfgProfile != "" || envProfile != "" {
 			return err
 		}
-		// Otherwise (ambiguous default, etc.) — not fatal, just skip profile
 		return nil
 	}
 	if resolved == "" {
@@ -1202,32 +1071,11 @@ func resolveProfile() error {
 		return nil
 	}
 
-	// Apply profile settings to cfg — but only for fields that haven't
-	// already been set by a higher-precedence source (env var).
-	cfg.Account = resolved
-	if p.BaseURL != "" && os.Getenv("FIZZY_API_URL") == "" {
+	cfg.Profile = resolved
+	if p.BaseURL != "" && os.Getenv("PONTO_API_URL") == "" {
 		cfg.APIURL = p.BaseURL
 	}
-	if boardRaw, ok := p.Extra["board"]; ok {
-		var board string
-		if json.Unmarshal(boardRaw, &board) == nil && board != "" && os.Getenv("FIZZY_BOARD") == "" {
-			cfg.Board = board
-		}
-	}
 	return nil
-}
-
-// profileEnvVar returns the FIZZY_PROFILE env var, falling back to FIZZY_ACCOUNT
-// for backward compatibility.
-func profileEnvVar() string {
-	if v := os.Getenv("FIZZY_PROFILE"); v != "" {
-		return v
-	}
-	if v := os.Getenv("FIZZY_ACCOUNT"); v != "" {
-		fmt.Fprintln(os.Stderr, "Warning: FIZZY_ACCOUNT is deprecated, use FIZZY_PROFILE instead")
-		return v
-	}
-	return ""
 }
 
 // resolveToken applies token precedence: YAML → credstore (with migration) → env → flag.
@@ -1235,25 +1083,22 @@ func resolveToken() {
 	// 1. YAML file (global + local, already in cfg.Token from config.Load())
 	// 2. credstore (overrides YAML — credstore is the "new" storage)
 	if creds != nil {
-		profileName := cfg.Account // profile name = account slug
+		profileName := cfg.Profile
 
 		if profileName != "" {
-			// Try profile-scoped token first
 			if t, err := credsLoadProfileToken(profileName); err == nil && t != "" {
 				cfg.Token = t
 			} else {
-				// Legacy migration: old keys → profile-scoped key
 				migrateLegacyToken(profileName)
 			}
 		} else {
-			// No profile — try legacy single key
-			if t, err := credsLoadLegacyToken(""); err == nil && t != "" {
+			if t, err := credsLoadLegacyToken(); err == nil && t != "" {
 				cfg.Token = t
 			}
 		}
 	}
 	// 3. env var (overrides credstore)
-	if t := os.Getenv("FIZZY_TOKEN"); t != "" {
+	if t := os.Getenv("PONTO_TOKEN"); t != "" {
 		cfg.Token = t
 	}
 	// 4. CLI flag (overrides everything)
@@ -1263,12 +1108,9 @@ func resolveToken() {
 }
 
 // migrateLegacyToken moves a token from legacy storage to profile-scoped storage.
-// Handles the old single-key credstore entry, account-scoped keys, and YAML config tokens.
+// Handles the old single-key credstore entry and YAML config tokens.
 func migrateLegacyToken(profileName string) {
-	// Check legacy credstore keys — copy to profile-scoped key but keep the
-	// legacy keys so older CLI versions still work after a downgrade.
-	if t, err := credsLoadLegacyToken(profileName); err == nil && t != "" {
-		// Always use the token, even if migration to profile-scoped key fails
+	if t, err := credsLoadLegacyToken(); err == nil && t != "" {
 		cfg.Token = t
 		if err := credsSaveProfileToken(profileName, t); err == nil {
 			ensureProfile(profileName, cfg.APIURL, "")
@@ -1279,11 +1121,10 @@ func migrateLegacyToken(profileName string) {
 	// Check YAML config token (pre-credstore migration)
 	globalCfg := config.LoadGlobal()
 	if globalCfg.Token != "" {
-		// Always use the token, even if migration to profile-scoped key fails
 		cfg.Token = globalCfg.Token
 		if err := credsSaveProfileToken(profileName, globalCfg.Token); err == nil {
 			globalCfg.Token = ""
-			globalCfg.Account = profileName
+			globalCfg.Profile = profileName
 			_ = globalCfg.Save()
 			ensureProfile(profileName, cfg.APIURL, "")
 		}
@@ -1295,7 +1136,7 @@ func migrateLegacyToken(profileName string) {
 // preserved only when the caller passes an empty string (meaning
 // "keep whatever is there"), and Extra entries are preserved unless
 // explicitly replaced.
-func ensureProfile(name, baseURL, board string) {
+func ensureProfile(name, baseURL, _ string) {
 	if profiles == nil {
 		return
 	}
@@ -1306,8 +1147,6 @@ func ensureProfile(name, baseURL, board string) {
 	if newBaseURL == "" {
 		if existing != nil && existing.BaseURL != "" {
 			newBaseURL = existing.BaseURL
-		} else {
-			newBaseURL = config.DefaultAPIURL
 		}
 	}
 
@@ -1317,10 +1156,6 @@ func ensureProfile(name, baseURL, board string) {
 			extra[k] = v
 		}
 	}
-	if board != "" {
-		extra["board"] = func() json.RawMessage { b, _ := json.Marshal(board); return b }()
-	}
-
 	p := &profile.Profile{
 		Name:    name,
 		BaseURL: newBaseURL,
@@ -1335,14 +1170,9 @@ func ensureProfile(name, baseURL, board string) {
 	}
 }
 
-// SetTestSDK configures the commands package for SDK-based testing.
-// Pass an httptest.Server URL and the SDK will be created pointing at it.
+// SetTestSDK is kept for older tests; Phase 1 uses the legacy HTTP client only.
 func SetTestSDK(baseURL string) {
-	sdkCfg := &fizzy.Config{BaseURL: baseURL}
-	sdk = fizzy.NewClient(sdkCfg, &fizzy.StaticTokenProvider{Token: "test-token"})
-	sdkAccount = func() *fizzy.AccountClient {
-		return sdk.ForAccount("test-account")
-	}
+	clientFactory = func() client.API { return client.New(baseURL, "test-token") }
 }
 
 // SetTestCreds sets the credential store for testing.
@@ -1359,7 +1189,7 @@ func SetTestProfiles(store *profile.Store) {
 func SetTestConfig(token, account, apiURL string) {
 	cfg = &config.Config{
 		Token:   token,
-		Account: account,
+		Profile: account,
 		APIURL:  apiURL,
 	}
 }
@@ -1367,9 +1197,6 @@ func SetTestConfig(token, account, apiURL string) {
 // ResetTestMode resets the test mode configuration.
 func ResetTestMode() {
 	clientFactory = nil
-	sdk = nil
-	sdkAccount = nil
-	errSDKInit = nil
 	lastResult = nil
 	lastRawOutput = ""
 	errOutputWrite = nil

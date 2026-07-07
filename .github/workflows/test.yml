@@ -34,10 +34,10 @@ jobs:
         run: go test -v ./...
 
       - name: Build
-        run: go build -o bin/fizzy ./cmd/fizzy
+        run: go build -o bin/ponto ./cmd/ponto
 
       - name: Verify binary runs
-        run: ./bin/fizzy --help
+        run: ./bin/ponto --help
 
   lint:
     runs-on: ubuntu-latest

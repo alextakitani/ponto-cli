@@ -3,5 +3,5 @@ package skills
 
 import "embed"
 
-//go:embed fizzy
+//go:embed ponto
 var FS embed.FS

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-REPO="basecamp/fizzy-cli"
-INSTALL_DIR="${FIZZY_BIN_DIR:-$HOME/.local/bin}"
+REPO="alextakitani/ponto-cli"
+INSTALL_DIR="${PONTO_BIN_DIR:-$HOME/.local/bin}"
 
 # Detect OS and architecture
 OS=$(uname -s | tr '[:upper:]' '[:lower:]')
@@ -21,7 +21,7 @@ case "$OS" in
 esac
 
 if [ "$OS" = "windows" ] && [ "$ARCH" = "arm64" ]; then
-  echo "Windows ARM64 is not currently supported. See https://github.com/basecamp/fizzy-cli/releases for available builds."
+  echo "Windows ARM64 is not currently supported. See https://github.com/alextakitani/ponto-cli/releases for available builds."
   exit 1
 fi
 
@@ -35,9 +35,9 @@ fi
 echo "Latest version: $VERSION"
 
 # Download binary
-BINARY_NAME="fizzy-${OS}-${ARCH}"
+BINARY_NAME="ponto-${OS}-${ARCH}"
 if [ "$OS" = "windows" ]; then
-  BINARY_NAME="fizzy-${OS}-${ARCH}.exe"
+  BINARY_NAME="ponto-${OS}-${ARCH}.exe"
 fi
 
 DOWNLOAD_URL="https://github.com/$REPO/releases/download/${VERSION}/${BINARY_NAME}"
@@ -70,15 +70,15 @@ echo "Checksum verified."
 
 # Install
 mkdir -p "$INSTALL_DIR"
-BINARY="fizzy"
+BINARY="ponto"
 if [ "$OS" = "windows" ]; then
-  BINARY="fizzy.exe"
+  BINARY="ponto.exe"
 fi
 cp "$BINARY_NAME" "$INSTALL_DIR/${BINARY}"
 chmod +x "$INSTALL_DIR/${BINARY}"
 
 echo ""
-echo "fizzy ${VERSION} installed to $INSTALL_DIR/${BINARY}"
+echo "ponto ${VERSION} installed to $INSTALL_DIR/${BINARY}"
 
 # Check if install dir is in PATH
 if ! echo "$PATH" | tr ':' '\n' | grep -qx "$INSTALL_DIR"; then

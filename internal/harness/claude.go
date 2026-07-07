@@ -27,11 +27,11 @@ func init() {
 	})
 }
 
-// ClaudeMarketplaceSource is the marketplace repository for the Fizzy plugin.
+// ClaudeMarketplaceSource is the marketplace repository for the Ponto plugin.
 const ClaudeMarketplaceSource = "basecamp/claude-plugins"
 
 // ClaudePluginName is the plugin identifier to install.
-const ClaudePluginName = "fizzy"
+const ClaudePluginName = "ponto"
 
 // DetectClaude returns true if Claude Code is installed.
 // Checks ~/.claude/ directory first, then falls back to binary on PATH.
@@ -63,7 +63,7 @@ func FindClaudeBinary() string {
 	return ""
 }
 
-// CheckClaudePlugin checks whether the fizzy plugin is installed in Claude Code.
+// CheckClaudePlugin checks whether the ponto plugin is installed in Claude Code.
 func CheckClaudePlugin() *StatusCheck {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -82,7 +82,7 @@ func CheckClaudePlugin() *StatusCheck {
 				Name:    "Claude Code Plugin",
 				Status:  "fail",
 				Message: "Plugin not installed",
-				Hint:    "Run: fizzy setup claude",
+				Hint:    "Run: ponto setup claude",
 			}
 		}
 		return &StatusCheck{
@@ -105,11 +105,11 @@ func CheckClaudePlugin() *StatusCheck {
 		Name:    "Claude Code Plugin",
 		Status:  "fail",
 		Message: "Plugin not installed",
-		Hint:    "Run: fizzy setup claude",
+		Hint:    "Run: ponto setup claude",
 	}
 }
 
-// CheckClaudeSkillLink checks whether ~/.claude/skills/fizzy contains a valid SKILL.md.
+// CheckClaudeSkillLink checks whether ~/.claude/skills/ponto contains a valid SKILL.md.
 func CheckClaudeSkillLink() *StatusCheck {
 	home, err := os.UserHomeDir()
 	if err != nil {
@@ -120,14 +120,14 @@ func CheckClaudeSkillLink() *StatusCheck {
 		}
 	}
 
-	skillPath := filepath.Join(filepath.Clean(home), ".claude", "skills", "fizzy", "SKILL.md")
+	skillPath := filepath.Join(filepath.Clean(home), ".claude", "skills", "ponto", "SKILL.md")
 	if _, err := os.Stat(skillPath); err != nil {
 		if os.IsNotExist(err) {
 			return &StatusCheck{
 				Name:    "Claude Code Skill",
 				Status:  "fail",
 				Message: "Skill not linked",
-				Hint:    "Run: fizzy setup claude",
+				Hint:    "Run: ponto setup claude",
 			}
 		}
 		return &StatusCheck{
@@ -145,13 +145,13 @@ func CheckClaudeSkillLink() *StatusCheck {
 	}
 }
 
-// pluginInstalled checks if "fizzy" appears as an installed plugin.
+// pluginInstalled checks if "ponto" appears as an installed plugin.
 func pluginInstalled(data []byte) bool {
 	// Try as array of objects
 	var plugins []map[string]any
 	if err := json.Unmarshal(data, &plugins); err == nil {
 		for _, p := range plugins {
-			if matchesFizzy(p) {
+			if matchesPonto(p) {
 				return true
 			}
 		}
@@ -161,20 +161,20 @@ func pluginInstalled(data []byte) bool {
 	// Try as map (key = plugin identifier, or v2 envelope with "plugins" key)
 	var pluginMap map[string]any
 	if err := json.Unmarshal(data, &pluginMap); err == nil {
-		// v2 format: {"version": 2, "plugins": {"fizzy@marketplace": [...]}}
+		// v2 format: {"version": 2, "plugins": {"ponto@marketplace": [...]}}
 		if inner, ok := pluginMap["plugins"]; ok {
 			if innerMap, ok := inner.(map[string]any); ok {
 				for key := range innerMap {
-					if key == "fizzy" || matchesPluginKey(key) {
+					if key == "ponto" || matchesPluginKey(key) {
 						return true
 					}
 				}
 				return false
 			}
 		}
-		// v1 flat map: {"fizzy@fizzy": {...}}
+		// v1 flat map: {"ponto@ponto": {...}}
 		for key := range pluginMap {
-			if key == "fizzy" || matchesPluginKey(key) {
+			if key == "ponto" || matchesPluginKey(key) {
 				return true
 			}
 		}
@@ -182,10 +182,10 @@ func pluginInstalled(data []byte) bool {
 	}
 
 	// Fallback: raw string search
-	return jsonContainsFizzy(data)
+	return jsonContainsPonto(data)
 }
 
-func matchesFizzy(p map[string]any) bool {
+func matchesPonto(p map[string]any) bool {
 	for _, field := range []string{"name", "package", "id"} {
 		if v, ok := p[field]; ok {
 			if s, ok := v.(string); ok {
@@ -198,12 +198,12 @@ func matchesFizzy(p map[string]any) bool {
 	return false
 }
 
-// matchesPluginKey returns true if the key identifies the fizzy plugin.
+// matchesPluginKey returns true if the key identifies the ponto plugin.
 func matchesPluginKey(key string) bool {
-	return key == "fizzy" || strings.HasPrefix(key, "fizzy@")
+	return key == "ponto" || strings.HasPrefix(key, "ponto@")
 }
 
-func jsonContainsFizzy(data []byte) bool {
+func jsonContainsPonto(data []byte) bool {
 	s := string(data)
-	return strings.Contains(s, `"fizzy"`) || strings.Contains(s, `"fizzy@`)
+	return strings.Contains(s, `"ponto"`) || strings.Contains(s, `"ponto@`)
 }

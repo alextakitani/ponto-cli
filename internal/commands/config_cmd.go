@@ -6,9 +6,9 @@ import (
 	"sort"
 	"strings"
 
+	cfgpkg "github.com/alextakitani/ponto-cli/internal/config"
 	"github.com/basecamp/cli/output"
 	"github.com/basecamp/cli/profile"
-	cfgpkg "github.com/basecamp/fizzy-cli/internal/config"
 	"github.com/spf13/cobra"
 )
 
@@ -39,9 +39,9 @@ var configShowCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		data := configShowData(cfgVerbose)
 		breadcrumbs := []Breadcrumb{
-			breadcrumb("doctor", "fizzy doctor", "Run a full health check"),
-			breadcrumb("explain", "fizzy config explain", "Explain configuration precedence"),
-			breadcrumb("profiles", "fizzy auth list", "List saved profiles"),
+			breadcrumb("doctor", "ponto doctor", "Run a full health check"),
+			breadcrumb("explain", "ponto config explain", "Explain configuration precedence"),
+			breadcrumb("profiles", "ponto auth list", "List saved profiles"),
 		}
 
 		switch out.EffectiveFormat() {
@@ -68,9 +68,9 @@ from flags, environment variables, profile settings, local config, and global co
 	RunE: func(cmd *cobra.Command, args []string) error {
 		data := configExplainData()
 		breadcrumbs := []Breadcrumb{
-			breadcrumb("doctor", "fizzy doctor", "Run a full health check"),
-			breadcrumb("show", "fizzy config show", "Show the effective config only"),
-			breadcrumb("profiles", "fizzy auth list", "List saved profiles"),
+			breadcrumb("doctor", "ponto doctor", "Run a full health check"),
+			breadcrumb("show", "ponto config show", "Show the effective config only"),
+			breadcrumb("profiles", "ponto auth list", "List saved profiles"),
 		}
 
 		switch out.EffectiveFormat() {
@@ -112,10 +112,6 @@ func configShowData(verbose bool) map[string]any {
 			"value":  emptyToNil(eff.APIURL),
 			"source": displayConfigSource(eff.APIURLSource),
 		},
-		"board": map[string]any{
-			"value":  emptyToNil(eff.Board),
-			"source": displayConfigSource(eff.BoardSource),
-		},
 		"token": map[string]any{
 			"configured": eff.Token != "",
 			"source":     displayTokenSource(eff.TokenSource),
@@ -126,7 +122,6 @@ func configShowData(verbose bool) map[string]any {
 		data = map[string]any{
 			"profile":  emptyToNil(eff.ProfileName),
 			"api_url":  emptyToNil(eff.APIURL),
-			"board":    emptyToNil(eff.Board),
 			"token":    map[string]any{"configured": eff.Token != "", "source": eff.TokenSource},
 			"profiles": savedProfileNames(),
 		}
@@ -150,11 +145,10 @@ func configExplainData() map[string]any {
 		Source: displayProfileSource(eff, defaultProfile),
 		Candidates: []configExplainCandidate{
 			{Source: "flag --profile", Value: unsetString(cfgProfile), Selected: eff.ProfileSource == "flag --profile"},
-			{Source: "env FIZZY_PROFILE", Value: unsetString(strings.TrimSpace(getEnv("FIZZY_PROFILE"))), Selected: eff.ProfileSource == "env FIZZY_PROFILE"},
-			{Source: "env FIZZY_ACCOUNT", Value: unsetString(strings.TrimSpace(getEnv("FIZZY_ACCOUNT"))), Selected: eff.ProfileSource == "env FIZZY_ACCOUNT"},
+			{Source: "env PONTO_PROFILE", Value: unsetString(strings.TrimSpace(getEnv("PONTO_PROFILE"))), Selected: eff.ProfileSource == "env PONTO_PROFILE"},
 			{Source: "default profile", Value: unsetString(defaultProfile), Selected: eff.ProfileSource == "profile store"},
-			{Source: "local config", Value: unsetString(fieldValue(localCfg, func(c *cfgpkg.Config) string { return c.Account })), Selected: eff.ProfileSource == "local config"},
-			{Source: "global config", Value: unsetString(fieldValue(globalCfg, func(c *cfgpkg.Config) string { return c.Account })), Selected: eff.ProfileSource == "global config"},
+			{Source: "local config", Value: unsetString(fieldValue(localCfg, func(c *cfgpkg.Config) string { return c.Profile })), Selected: eff.ProfileSource == "local config"},
+			{Source: "global config", Value: unsetString(fieldValue(globalCfg, func(c *cfgpkg.Config) string { return c.Profile })), Selected: eff.ProfileSource == "global config"},
 		},
 	}
 
@@ -163,22 +157,10 @@ func configExplainData() map[string]any {
 		Source: displayFieldSource(eff.APIURLSource, profileSourceLabel(resolvedProfile, eff.ProfileName)),
 		Candidates: []configExplainCandidate{
 			{Source: "flag --api-url", Value: unsetString(cfgAPIURL), Selected: eff.APIURLSource == "flag --api-url"},
-			{Source: "env FIZZY_API_URL", Value: unsetString(strings.TrimSpace(getEnv("FIZZY_API_URL"))), Selected: eff.APIURLSource == "env FIZZY_API_URL"},
+			{Source: "env PONTO_API_URL", Value: unsetString(strings.TrimSpace(getEnv("PONTO_API_URL"))), Selected: eff.APIURLSource == "env PONTO_API_URL"},
 			{Source: profileSourceLabel(resolvedProfile, eff.ProfileName), Value: unsetString(profileBaseURL(profileCfg)), Selected: eff.APIURLSource == "profile store"},
 			{Source: "local config", Value: unsetString(fieldValue(localCfg, func(c *cfgpkg.Config) string { return c.APIURL })), Selected: eff.APIURLSource == "local config"},
 			{Source: "global config", Value: unsetString(fieldValue(globalCfg, func(c *cfgpkg.Config) string { return c.APIURL })), Selected: eff.APIURLSource == "global config"},
-			{Source: "default", Value: cfgpkg.DefaultAPIURL, Selected: eff.APIURLSource == "default"},
-		},
-	}
-
-	boardField := configExplainField{
-		Value:  emptyToNil(eff.Board),
-		Source: displayFieldSource(eff.BoardSource, profileSourceLabel(resolvedProfile, eff.ProfileName)),
-		Candidates: []configExplainCandidate{
-			{Source: "env FIZZY_BOARD", Value: unsetString(strings.TrimSpace(getEnv("FIZZY_BOARD"))), Selected: eff.BoardSource == "env FIZZY_BOARD"},
-			{Source: profileSourceLabel(resolvedProfile, eff.ProfileName), Value: unsetString(doctorProfileBoard(profileCfg)), Selected: eff.BoardSource == "profile store"},
-			{Source: "local config", Value: unsetString(fieldValue(localCfg, func(c *cfgpkg.Config) string { return c.Board })), Selected: eff.BoardSource == "local config"},
-			{Source: "global config", Value: unsetString(fieldValue(globalCfg, func(c *cfgpkg.Config) string { return c.Board })), Selected: eff.BoardSource == "global config"},
 		},
 	}
 
@@ -188,7 +170,7 @@ func configExplainData() map[string]any {
 		Configured: &configured,
 		Candidates: []configExplainCandidate{
 			{Source: "flag --token", Value: configuredString(cfgToken != "", "configured via flag"), Selected: eff.TokenSourceRaw == "flag"},
-			{Source: "env FIZZY_TOKEN", Value: configuredString(strings.TrimSpace(getEnv("FIZZY_TOKEN")) != "", "configured in environment"), Selected: eff.TokenSourceRaw == "env"},
+			{Source: "env PONTO_TOKEN", Value: configuredString(strings.TrimSpace(getEnv("PONTO_TOKEN")) != "", "configured in environment"), Selected: eff.TokenSourceRaw == "env"},
 			{Source: profileTokenSourceLabel(resolvedProfile, eff.ProfileName), Value: configuredString(profileToken != "", profileCredentialValue(eff.TokenSourceRaw, profileToken != "")), Selected: eff.TokenSourceRaw == "keyring" || eff.TokenSourceRaw == "fallback-file" || eff.TokenSourceRaw == "legacy-keyring" || eff.TokenSourceRaw == "legacy-fallback"},
 			{Source: "local config", Value: configuredString(localCfg != nil && localCfg.Token != "", "configured in local config"), Selected: eff.TokenSourceRaw == "local-config"},
 			{Source: "global config", Value: configuredString(globalCfg != nil && globalCfg.Token != "", "configured in global config"), Selected: eff.TokenSourceRaw == "global-config"},
@@ -198,7 +180,6 @@ func configExplainData() map[string]any {
 	return map[string]any{
 		"profile":        profileField,
 		"api_url":        apiURLField,
-		"board":          boardField,
 		"token":          tokenField,
 		"saved_profiles": savedProfileNames(),
 	}
@@ -207,41 +188,38 @@ func configExplainData() map[string]any {
 func renderConfigShowHuman(data map[string]any, markdown bool) string {
 	var sb strings.Builder
 	if markdown {
-		sb.WriteString("# Fizzy Config\n\n")
+		sb.WriteString("# Ponto Config\n\n")
 	} else {
-		sb.WriteString("Fizzy Config\n\n")
+		sb.WriteString("Ponto Config\n\n")
 	}
 
 	profile := describeConfigShowValue(data["profile"])
 	apiURL := describeConfigShowValue(data["api_url"])
-	board := describeConfigShowValue(data["board"])
 	token := describeConfigShowToken(data["token"])
 	profiles := describeConfigShowProfiles(data["profiles"])
 
 	if markdown {
 		fmt.Fprintf(&sb, "- **Profile:** `%s`\n", profile)
 		fmt.Fprintf(&sb, "- **API URL:** `%s`\n", apiURL)
-		fmt.Fprintf(&sb, "- **Board:** `%s`\n", board)
 		fmt.Fprintf(&sb, "- **Token:** %s\n", token)
 		if profiles != "" {
 			fmt.Fprintf(&sb, "- **Saved Profiles:** %s\n", profiles)
 		}
 		sb.WriteString("\n## Next steps\n")
-		sb.WriteString("- `fizzy config explain` — explain precedence\n")
-		sb.WriteString("- `fizzy doctor` — run a full health check\n")
-		sb.WriteString("- `fizzy auth list` — inspect saved profiles\n")
+		sb.WriteString("- `ponto config explain` — explain precedence\n")
+		sb.WriteString("- `ponto doctor` — run a full health check\n")
+		sb.WriteString("- `ponto auth list` — inspect saved profiles\n")
 	} else {
 		fmt.Fprintf(&sb, "Profile        %s\n", profile)
 		fmt.Fprintf(&sb, "API URL        %s\n", apiURL)
-		fmt.Fprintf(&sb, "Board          %s\n", board)
 		fmt.Fprintf(&sb, "Token          %s\n", token)
 		if profiles != "" {
 			fmt.Fprintf(&sb, "Saved Profiles %s\n", profiles)
 		}
 		sb.WriteString("\nNext steps\n")
-		sb.WriteString("  fizzy config explain  # explain precedence\n")
-		sb.WriteString("  fizzy doctor          # run a full health check\n")
-		sb.WriteString("  fizzy auth list       # inspect saved profiles\n")
+		sb.WriteString("  ponto config explain  # explain precedence\n")
+		sb.WriteString("  ponto doctor          # run a full health check\n")
+		sb.WriteString("  ponto auth list       # inspect saved profiles\n")
 	}
 
 	return sb.String()
@@ -250,9 +228,9 @@ func renderConfigShowHuman(data map[string]any, markdown bool) string {
 func renderConfigExplainHuman(data map[string]any, markdown bool) string {
 	var sb strings.Builder
 	if markdown {
-		sb.WriteString("# Fizzy Config Explain\n\n")
+		sb.WriteString("# Ponto Config Explain\n\n")
 	} else {
-		sb.WriteString("Fizzy Config Explain\n\n")
+		sb.WriteString("Ponto Config Explain\n\n")
 	}
 
 	order := []struct {
@@ -261,7 +239,6 @@ func renderConfigExplainHuman(data map[string]any, markdown bool) string {
 	}{
 		{"profile", "Profile"},
 		{"api_url", "API URL"},
-		{"board", "Board"},
 		{"token", "Token"},
 	}
 
@@ -321,14 +298,14 @@ func renderConfigExplainHuman(data map[string]any, markdown bool) string {
 
 	if markdown {
 		sb.WriteString("## Next steps\n")
-		sb.WriteString("- `fizzy config show` — show the effective config only\n")
-		sb.WriteString("- `fizzy doctor` — run a full health check\n")
-		sb.WriteString("- `fizzy auth list` — inspect saved profiles\n")
+		sb.WriteString("- `ponto config show` — show the effective config only\n")
+		sb.WriteString("- `ponto doctor` — run a full health check\n")
+		sb.WriteString("- `ponto auth list` — inspect saved profiles\n")
 	} else {
 		sb.WriteString("Next steps\n")
-		sb.WriteString("  fizzy config show   # show the effective config only\n")
-		sb.WriteString("  fizzy doctor        # run a full health check\n")
-		sb.WriteString("  fizzy auth list     # inspect saved profiles\n")
+		sb.WriteString("  ponto config show   # show the effective config only\n")
+		sb.WriteString("  ponto doctor        # run a full health check\n")
+		sb.WriteString("  ponto auth list     # inspect saved profiles\n")
 	}
 
 	return sb.String()

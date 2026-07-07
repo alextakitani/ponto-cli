@@ -3,7 +3,6 @@ package commands
 import (
 	"context"
 	"encoding/json"
-	stderrors "errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -14,12 +13,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/alextakitani/ponto-cli/internal/config"
+	"github.com/alextakitani/ponto-cli/internal/errors"
+	"github.com/alextakitani/ponto-cli/internal/harness"
 	"github.com/basecamp/cli/output"
 	"github.com/basecamp/cli/profile"
-	"github.com/basecamp/fizzy-cli/internal/config"
-	"github.com/basecamp/fizzy-cli/internal/errors"
-	"github.com/basecamp/fizzy-cli/internal/harness"
-	fizzy "github.com/basecamp/fizzy-sdk/go/pkg/fizzy"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -83,8 +81,6 @@ type doctorEffectiveConfig struct {
 	ProfileSource  string
 	APIURL         string
 	APIURLSource   string
-	Board          string
-	BoardSource    string
 	Token          string
 	TokenSource    string
 	TokenSourceRaw string
@@ -100,17 +96,17 @@ func NewDoctorCmd() *cobra.Command {
 		Use:   "doctor",
 		Short: "Check CLI health and diagnose issues",
 		Long: `Run diagnostic checks on installation health, configuration, authentication, API connectivity,
-board access, shell integration, and coding-agent setup.
+shell integration, and coding-agent setup.
 
 Use --profile NAME to check a specific saved profile, or --all-profiles to sweep every saved
 profile in addition to the global install checks.
 
 Examples:
-  fizzy doctor
-  fizzy doctor --profile acme
-  fizzy doctor --all-profiles
-  fizzy doctor --verbose
-  fizzy doctor --json`,
+  ponto doctor
+  ponto doctor --profile acme
+  ponto doctor --all-profiles
+  ponto doctor --verbose
+  ponto doctor --json`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if allProfiles && cfgProfile != "" {
 				return errors.NewInvalidArgsError("--all-profiles cannot be used with --profile")
@@ -172,7 +168,7 @@ func runDoctor(ctx context.Context, verbose, allProfiles bool) *DoctorResult {
 				Name:    "Profile Sweep",
 				Status:  "skip",
 				Message: "No saved profiles to check",
-				Hint:    "Run: fizzy auth login <token>",
+				Hint:    "Run: ponto auth login <token>",
 			})
 		}
 	} else {
@@ -231,22 +227,9 @@ func runDoctorTargetChecks(ctx context.Context, eff doctorEffectiveConfig, verbo
 	if canAuth {
 		authCheck := checkDoctorAuthentication(ctx, eff, verbose)
 		checks = append(checks, authCheck)
-		if authCheck.Status == "pass" {
-			checks = append(checks, checkDoctorAccountAccess(ctx, eff, verbose))
-			checks = append(checks, checkDoctorBoardAccess(ctx, eff, verbose))
-		} else {
-			checks = append(checks,
-				DoctorCheck{Name: "Account Access", Status: "skip", Message: "Skipped (authentication failed)"},
-				DoctorCheck{Name: "Default Board", Status: "skip", Message: "Skipped (authentication failed)"},
-			)
-		}
 	} else {
 		authMsg := "Skipped (missing credentials or API unreachable)"
-		checks = append(checks,
-			DoctorCheck{Name: "Authentication", Status: "skip", Message: authMsg},
-			DoctorCheck{Name: "Account Access", Status: "skip", Message: authMsg},
-			DoctorCheck{Name: "Default Board", Status: "skip", Message: authMsg},
-		)
+		checks = append(checks, DoctorCheck{Name: "Authentication", Status: "skip", Message: authMsg})
 	}
 	return checks
 }
@@ -321,7 +304,7 @@ func checkDoctorVersion(verbose bool) DoctorCheck {
 	if err == nil && latest != "" && latest != current {
 		check.Status = "warn"
 		check.Message = fmt.Sprintf("%s (latest: %s)", current, latest)
-		check.Hint = "Download the latest release from https://github.com/basecamp/fizzy-cli/releases/latest"
+		check.Hint = "Download the latest release from https://github.com/alextakitani/ponto-cli/releases/latest"
 	}
 	return check
 }
@@ -330,7 +313,7 @@ func fetchLatestDoctorVersion() (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.github.com/repos/basecamp/fizzy-cli/releases/latest", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://api.github.com/repos/alextakitani/ponto-cli/releases/latest", nil)
 	if err != nil {
 		return "", err
 	}
@@ -369,7 +352,7 @@ func checkDoctorGlobalConfig(verbose bool) DoctorCheck {
 			return validateDoctorConfigFile(path, "Global Config", verbose)
 		}
 	}
-	pathHint := "~/.config/fizzy/config.yaml"
+	pathHint := "~/.config/ponto/config.yaml"
 	if len(paths) > 0 {
 		pathHint = paths[0]
 	}
@@ -377,7 +360,7 @@ func checkDoctorGlobalConfig(verbose bool) DoctorCheck {
 		Name:    "Global Config",
 		Status:  "warn",
 		Message: "Not found (using defaults)",
-		Hint:    fmt.Sprintf("Create %s or run: fizzy setup", pathHint),
+		Hint:    fmt.Sprintf("Create %s or run: ponto setup", pathHint),
 	}
 }
 
@@ -421,7 +404,7 @@ func checkDoctorProfileStore(verbose bool) DoctorCheck {
 			Name:    "Profile Store",
 			Status:  "warn",
 			Message: "Profile store unavailable",
-			Hint:    "Run: fizzy setup or fizzy auth login <token>",
+			Hint:    "Run: ponto setup or ponto auth login <token>",
 		}
 	}
 	allProfiles, _, err := profiles.List()
@@ -438,7 +421,7 @@ func checkDoctorProfileStore(verbose bool) DoctorCheck {
 			Name:    "Profile Store",
 			Status:  "warn",
 			Message: "No named profiles configured",
-			Hint:    "Run: fizzy setup or fizzy auth login <token>",
+			Hint:    "Run: ponto setup or ponto auth login <token>",
 		}
 	}
 	msg := fmt.Sprintf("%d profile(s) configured", len(allProfiles))
@@ -449,15 +432,14 @@ func checkDoctorProfileStore(verbose bool) DoctorCheck {
 		Name:    "Profile Store",
 		Status:  "pass",
 		Message: msg,
-		Hint:    "Use: fizzy doctor --profile NAME or fizzy doctor --all-profiles",
+		Hint:    "Use: ponto doctor --profile NAME or ponto doctor --all-profiles",
 	}
 }
 
 func resolveDoctorEffectiveConfig() doctorEffectiveConfig {
 	eff := doctorEffectiveConfig{
-		ProfileName: cfg.Account,
+		ProfileName: cfg.Profile,
 		APIURL:      cfg.APIURL,
-		Board:       cfg.Board,
 		Token:       cfg.Token,
 	}
 
@@ -468,15 +450,13 @@ func resolveDoctorEffectiveConfig() doctorEffectiveConfig {
 	switch {
 	case cfgProfile != "":
 		eff.ProfileSource = "flag --profile"
-	case os.Getenv("FIZZY_PROFILE") != "":
-		eff.ProfileSource = "env FIZZY_PROFILE"
-	case os.Getenv("FIZZY_ACCOUNT") != "":
-		eff.ProfileSource = "env FIZZY_ACCOUNT"
+	case os.Getenv("PONTO_PROFILE") != "":
+		eff.ProfileSource = "env PONTO_PROFILE"
 	case resolvedProfile != "":
 		eff.ProfileSource = "profile store"
-	case localCfg != nil && localCfg.Account != "":
+	case localCfg != nil && localCfg.Profile != "":
 		eff.ProfileSource = "local config"
-	case globalCfg != nil && globalCfg.Account != "":
+	case globalCfg != nil && globalCfg.Profile != "":
 		eff.ProfileSource = "global config"
 	default:
 		eff.ProfileSource = "unset"
@@ -485,8 +465,8 @@ func resolveDoctorEffectiveConfig() doctorEffectiveConfig {
 	switch {
 	case cfgAPIURL != "":
 		eff.APIURLSource = "flag --api-url"
-	case os.Getenv("FIZZY_API_URL") != "":
-		eff.APIURLSource = "env FIZZY_API_URL"
+	case os.Getenv("PONTO_API_URL") != "":
+		eff.APIURLSource = "env PONTO_API_URL"
 	case profileCfg != nil && profileCfg.BaseURL != "":
 		eff.APIURLSource = "profile store"
 	case localCfg != nil && localCfg.APIURL != "":
@@ -494,23 +474,10 @@ func resolveDoctorEffectiveConfig() doctorEffectiveConfig {
 	case globalCfg != nil && globalCfg.APIURL != "":
 		eff.APIURLSource = "global config"
 	default:
-		eff.APIURLSource = "default"
+		eff.APIURLSource = "unset"
 	}
 
-	switch {
-	case os.Getenv("FIZZY_BOARD") != "":
-		eff.BoardSource = "env FIZZY_BOARD"
-	case doctorProfileBoard(profileCfg) != "":
-		eff.BoardSource = "profile store"
-	case localCfg != nil && localCfg.Board != "":
-		eff.BoardSource = "local config"
-	case globalCfg != nil && globalCfg.Board != "":
-		eff.BoardSource = "global config"
-	default:
-		eff.BoardSource = "unset"
-	}
-
-	eff.TokenSourceRaw, eff.TokenSource, eff.Token = doctorTokenSourceWithValue(cfg.Account, localCfg, globalCfg)
+	eff.TokenSourceRaw, eff.TokenSource, eff.Token = doctorTokenSourceWithValue(cfg.Profile, localCfg, globalCfg)
 	return eff
 }
 
@@ -531,15 +498,6 @@ func checkDoctorEffectiveConfig(eff doctorEffectiveConfig, verbose bool) DoctorC
 		} else {
 			parts = append(parts, fmt.Sprintf("api_url=%s", eff.APIURL))
 		}
-	}
-	if eff.Board != "" {
-		if verbose {
-			parts = append(parts, fmt.Sprintf("board=%s [%s]", eff.Board, eff.BoardSource))
-		} else {
-			parts = append(parts, fmt.Sprintf("board=%s", eff.Board))
-		}
-	} else if verbose {
-		parts = append(parts, "board=<unset>")
 	}
 	if eff.TokenSource != "" {
 		if verbose {
@@ -577,20 +535,20 @@ func checkDoctorCredentialStorage(eff doctorEffectiveConfig, _ bool) DoctorCheck
 			Name:    "Credential Storage",
 			Status:  "warn",
 			Message: "Token is stored in local project config",
-			Hint:    "Move credentials to the keyring with: fizzy auth login <token>",
+			Hint:    "Move credentials to the keyring with: ponto auth login <token>",
 		}
 	case "global-config":
 		return DoctorCheck{
 			Name:    "Credential Storage",
 			Status:  "warn",
 			Message: "Token is stored in global config",
-			Hint:    "Prefer the system keyring: fizzy auth login <token>",
+			Hint:    "Prefer the system keyring: ponto auth login <token>",
 		}
 	case "legacy-keyring", "legacy-fallback":
-		hint := "Refresh credentials with: fizzy auth login <token>"
+		hint := "Refresh credentials with: ponto auth login <token>"
 		if eff.TokenSourceRaw == "legacy-fallback" && creds != nil {
 			if warning := creds.FallbackWarning(); warning != "" {
-				hint = warning + "; then refresh credentials with: fizzy auth login <token>"
+				hint = warning + "; then refresh credentials with: ponto auth login <token>"
 			}
 		}
 		return DoctorCheck{
@@ -620,32 +578,32 @@ func checkDoctorCredentialStorage(eff doctorEffectiveConfig, _ bool) DoctorCheck
 }
 
 func checkDoctorLegacyState(eff doctorEffectiveConfig) DoctorCheck {
-	if os.Getenv("FIZZY_ACCOUNT") != "" {
-		return DoctorCheck{
-			Name:    "Legacy Environment",
-			Status:  "warn",
-			Message: "Using deprecated FIZZY_ACCOUNT environment variable",
-			Hint:    "Use FIZZY_PROFILE instead",
-		}
-	}
 	if eff.TokenSourceRaw == "legacy-keyring" || eff.TokenSourceRaw == "legacy-fallback" {
 		return DoctorCheck{
 			Name:    "Legacy Environment",
 			Status:  "warn",
 			Message: "Using legacy credential format",
-			Hint:    "Run: fizzy auth login <token>",
+			Hint:    "Run: ponto auth login <token>",
 		}
 	}
 	return DoctorCheck{Name: "Legacy Environment", Status: "pass", Message: "No legacy compatibility issues detected"}
 }
 
 func checkDoctorAPIURL(eff doctorEffectiveConfig, _ bool) DoctorCheck {
+	if strings.TrimSpace(eff.APIURL) == "" {
+		return DoctorCheck{
+			Name:    "API URL",
+			Status:  "fail",
+			Message: "No API URL configured",
+			Hint:    "Run: ponto setup or set PONTO_API_URL",
+		}
+	}
 	if err := validateAPIURL(eff.APIURL); err != nil {
 		return DoctorCheck{
 			Name:    "API URL",
 			Status:  "fail",
 			Message: fmt.Sprintf("Invalid API URL: %s", eff.APIURL),
-			Hint:    fmt.Sprintf("%v. Fix --api-url, FIZZY_API_URL, profile base_url, or run: fizzy setup", err),
+			Hint:    fmt.Sprintf("%v. Fix --api-url, PONTO_API_URL, profile base_url, or run: ponto setup", err),
 		}
 	}
 	if strings.HasPrefix(eff.APIURL, "http://") {
@@ -661,7 +619,7 @@ func checkDoctorAPIURL(eff doctorEffectiveConfig, _ bool) DoctorCheck {
 
 func checkDoctorAPIReachability(ctx context.Context, eff doctorEffectiveConfig, verbose bool) DoctorCheck {
 	if eff.APIURL == "" {
-		return DoctorCheck{Name: "API Reachability", Status: "fail", Message: "No API URL configured", Hint: "Run: fizzy setup"}
+		return DoctorCheck{Name: "API Reachability", Status: "fail", Message: "No API URL configured", Hint: "Run: ponto setup"}
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, eff.APIURL, nil)
 	if err != nil {
@@ -690,95 +648,31 @@ func checkDoctorAPIReachability(ctx context.Context, eff doctorEffectiveConfig, 
 }
 
 func checkDoctorAuthentication(ctx context.Context, eff doctorEffectiveConfig, verbose bool) DoctorCheck {
-	client, _, err := newDoctorClients(eff)
-	if err != nil {
-		return DoctorCheck{Name: "Authentication", Status: "fail", Message: "SDK initialization failed", Hint: err.Error()}
-	}
 	start := time.Now()
-	identity, _, err := client.Identity().GetMyIdentity(ctx)
+	base := strings.TrimRight(eff.APIURL, "/")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"/api/v1/timer/status", nil)
 	if err != nil {
-		conv := convertSDKError(err)
-		var outErr *output.Error
-		if stderrors.As(conv, &outErr) {
-			return DoctorCheck{Name: "Authentication", Status: "fail", Message: outErr.Message, Hint: firstNonEmpty(outErr.Hint, doctorLoginHint(eff.ProfileName))}
-		}
-		return DoctorCheck{Name: "Authentication", Status: "fail", Message: err.Error(), Hint: doctorLoginHint(eff.ProfileName)}
+		return DoctorCheck{Name: "Authentication", Status: "fail", Message: "Cannot build auth request", Hint: err.Error()}
+	}
+	req.Header.Set("Authorization", "Bearer "+eff.Token)
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", "ponto-cli/"+currentVersion())
+	resp, err := (&http.Client{Timeout: 5 * time.Second}).Do(req)
+	if err != nil {
+		return DoctorCheck{Name: "Authentication", Status: "fail", Message: "Authentication request failed", Hint: err.Error()}
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return DoctorCheck{Name: "Authentication", Status: "fail", Message: fmt.Sprintf("Token rejected (%d)", resp.StatusCode), Hint: doctorLoginHint(eff.ProfileName)}
+	}
+	if resp.StatusCode >= 400 {
+		return DoctorCheck{Name: "Authentication", Status: "warn", Message: fmt.Sprintf("Auth endpoint returned %d", resp.StatusCode), Hint: "Check the configured Ponto API URL"}
 	}
 	msg := "Token accepted"
 	if verbose {
 		msg = fmt.Sprintf("Token accepted (%dms)", time.Since(start).Milliseconds())
-		if identity != nil && identity.EmailAddress != "" {
-			msg += fmt.Sprintf(" for %s", identity.EmailAddress)
-		}
 	}
 	return DoctorCheck{Name: "Authentication", Status: "pass", Message: msg}
-}
-
-func checkDoctorAccountAccess(ctx context.Context, eff doctorEffectiveConfig, verbose bool) DoctorCheck {
-	if eff.ProfileName == "" {
-		return DoctorCheck{
-			Name:    "Account Access",
-			Status:  "warn",
-			Message: "No profile/account configured",
-			Hint:    "Set --profile, FIZZY_PROFILE, or run: fizzy setup",
-		}
-	}
-	_, accountClient, err := newDoctorClients(eff)
-	if err != nil {
-		return DoctorCheck{Name: "Account Access", Status: "fail", Message: "SDK initialization failed", Hint: err.Error()}
-	}
-	start := time.Now()
-	items, _, err := accountClient.Boards().List(ctx, "/boards.json")
-	if err != nil {
-		conv := convertSDKError(err)
-		var outErr *output.Error
-		if stderrors.As(conv, &outErr) {
-			return DoctorCheck{Name: "Account Access", Status: "fail", Message: fmt.Sprintf("Cannot access account %s", eff.ProfileName), Hint: outErr.Message}
-		}
-		return DoctorCheck{Name: "Account Access", Status: "fail", Message: fmt.Sprintf("Cannot access account %s", eff.ProfileName), Hint: err.Error()}
-	}
-	count := dataCount(normalizeAny(items))
-	msg := fmt.Sprintf("Account %s accessible", eff.ProfileName)
-	if verbose {
-		msg = fmt.Sprintf("Account %s accessible (%d boards, %dms)", eff.ProfileName, count, time.Since(start).Milliseconds())
-	}
-	return DoctorCheck{Name: "Account Access", Status: "pass", Message: msg}
-}
-
-func checkDoctorBoardAccess(ctx context.Context, eff doctorEffectiveConfig, verbose bool) DoctorCheck {
-	if eff.Board == "" {
-		return DoctorCheck{
-			Name:    "Default Board",
-			Status:  "warn",
-			Message: "No default board configured",
-			Hint:    "Set FIZZY_BOARD, add board to your profile, or run: fizzy setup",
-		}
-	}
-	_, accountClient, err := newDoctorClients(eff)
-	if err != nil {
-		return DoctorCheck{Name: "Default Board", Status: "fail", Message: "SDK initialization failed", Hint: err.Error()}
-	}
-	start := time.Now()
-	resp, err := accountClient.Get(ctx, "/boards/"+eff.Board+".json")
-	if err != nil {
-		conv := convertSDKError(err)
-		var outErr *output.Error
-		if stderrors.As(conv, &outErr) {
-			return DoctorCheck{Name: "Default Board", Status: "fail", Message: fmt.Sprintf("Cannot access board %s", eff.Board), Hint: outErr.Message}
-		}
-		return DoctorCheck{Name: "Default Board", Status: "fail", Message: fmt.Sprintf("Cannot access board %s", eff.Board), Hint: err.Error()}
-	}
-	name := eff.Board
-	if board, ok := normalizeAny(resp.Data).(map[string]any); ok {
-		if boardName, ok := board["name"].(string); ok && boardName != "" {
-			name = boardName
-		}
-	}
-	msg := fmt.Sprintf("Board %s accessible", eff.Board)
-	if verbose {
-		msg = fmt.Sprintf("Board %s accessible as %q (%dms)", eff.Board, name, time.Since(start).Milliseconds())
-	}
-	return DoctorCheck{Name: "Default Board", Status: "pass", Message: msg}
 }
 
 func checkDoctorFilesystem(verbose bool) DoctorCheck {
@@ -838,7 +732,7 @@ func checkDoctorShellCompletion(verbose bool) DoctorCheck {
 		Name:    "Shell Completion",
 		Status:  "warn",
 		Message: fmt.Sprintf("%s completion not installed", shell),
-		Hint:    fmt.Sprintf("Run: fizzy completion %s --help", shell),
+		Hint:    fmt.Sprintf("Run: ponto completion %s --help", shell),
 	}
 }
 
@@ -850,7 +744,7 @@ func checkDoctorSkillInstallation() DoctorCheck {
 		Name:    "Agent Skill",
 		Status:  "warn",
 		Message: "Baseline skill not installed",
-		Hint:    "Run: fizzy skill install",
+		Hint:    "Run: ponto skill install",
 	}
 }
 
@@ -869,7 +763,7 @@ func checkDoctorSkillVersion() DoctorCheck {
 		Name:    "Skill Version",
 		Status:  "warn",
 		Message: fmt.Sprintf("Stale (installed: %s, current: %s)", installed, currentVersion()),
-		Hint:    "Run: fizzy skill install",
+		Hint:    "Run: ponto skill install",
 	}
 }
 
@@ -881,32 +775,25 @@ func buildDoctorBreadcrumbs(checks []DoctorCheck) []Breadcrumb {
 		}
 		switch c.Name {
 		case "Global Config", "Local Config", "API URL", "Filesystem", "Effective Config":
-			breadcrumbs = append(breadcrumbs, breadcrumb("setup", "fizzy setup", "Review and repair configuration"))
+			breadcrumbs = append(breadcrumbs, breadcrumb("setup", "ponto setup", "Review and repair configuration"))
 		case "Profile Store":
 			breadcrumbs = append(breadcrumbs,
-				breadcrumb("profiles", "fizzy auth list", "List saved profiles"),
-				breadcrumb("doctor_all", "fizzy doctor --all-profiles", "Check every saved profile"),
+				breadcrumb("profiles", "ponto auth list", "List saved profiles"),
+				breadcrumb("doctor_all", "ponto doctor --all-profiles", "Check every saved profile"),
 			)
 		case "Credentials", "Credential Storage", "Authentication", "Legacy Environment":
 			breadcrumbs = append(breadcrumbs,
-				breadcrumb("login", "fizzy auth login <token>", "Refresh credentials"),
-				breadcrumb("status", "fizzy auth status", "Check authentication status"),
+				breadcrumb("login", "ponto auth login <token>", "Refresh credentials"),
+				breadcrumb("status", "ponto auth status", "Check authentication status"),
 			)
-		case "Account Access":
-			breadcrumbs = append(breadcrumbs,
-				breadcrumb("identity", "fizzy identity show", "Verify identity and accounts"),
-				breadcrumb("boards", "fizzy board list", "List boards for the active account"),
-			)
-		case "Default Board":
-			breadcrumbs = append(breadcrumbs, breadcrumb("boards", "fizzy board list", "Pick a working default board"))
 		case "Shell Completion":
 			if shell := detectDoctorShell(); shell != "" {
-				breadcrumbs = append(breadcrumbs, breadcrumb("completion", fmt.Sprintf("fizzy completion %s --help", shell), "Install shell completion"))
+				breadcrumbs = append(breadcrumbs, breadcrumb("completion", fmt.Sprintf("ponto completion %s --help", shell), "Install shell completion"))
 			}
 		case "Agent Skill", "Skill Version":
-			breadcrumbs = append(breadcrumbs, breadcrumb("skill", "fizzy skill install", "Install or refresh the agent skill"))
+			breadcrumbs = append(breadcrumbs, breadcrumb("skill", "ponto skill install", "Install or refresh the agent skill"))
 		case "Claude Code Plugin", "Claude Code Skill":
-			breadcrumbs = append(breadcrumbs, breadcrumb("claude", "fizzy setup claude", "Repair Claude Code integration"))
+			breadcrumbs = append(breadcrumbs, breadcrumb("claude", "ponto setup claude", "Repair Claude Code integration"))
 		}
 	}
 	seen := map[string]bool{}
@@ -945,7 +832,7 @@ func renderDoctorStyled(w io.Writer, result *DoctorResult, breadcrumbs []Breadcr
 	}
 
 	fmt.Fprintln(w)
-	fmt.Fprintln(w, title.Render("Fizzy CLI Doctor"))
+	fmt.Fprintln(w, title.Render("Ponto CLI Doctor"))
 	fmt.Fprintln(w)
 	renderChecks("  ", result.Checks)
 	if len(result.Profiles) > 0 {
@@ -993,7 +880,7 @@ func renderDoctorMarkdown(w io.Writer, result *DoctorResult, breadcrumbs []Bread
 	if w == nil {
 		return
 	}
-	fmt.Fprintln(w, "# Fizzy CLI Doctor")
+	fmt.Fprintln(w, "# Ponto CLI Doctor")
 	fmt.Fprintln(w)
 	for _, check := range result.Checks {
 		icon := map[string]string{"pass": "✅", "fail": "❌", "warn": "⚠️", "skip": "➖"}[check.Status]
@@ -1055,9 +942,9 @@ func doctorCompletionPath(shell string) (bool, string) {
 	}
 	switch shell {
 	case "bash":
-		paths := []string{"/opt/homebrew/etc/bash_completion.d/fizzy", "/usr/local/etc/bash_completion.d/fizzy", "/etc/bash_completion.d/fizzy"}
+		paths := []string{"/opt/homebrew/etc/bash_completion.d/ponto", "/usr/local/etc/bash_completion.d/ponto", "/etc/bash_completion.d/ponto"}
 		if home != "" {
-			paths = append(paths, filepath.Join(home, ".local", "share", "bash-completion", "completions", "fizzy"))
+			paths = append(paths, filepath.Join(home, ".local", "share", "bash-completion", "completions", "ponto"))
 		}
 		for _, path := range paths {
 			if doctorPathExists(path) {
@@ -1065,9 +952,9 @@ func doctorCompletionPath(shell string) (bool, string) {
 			}
 		}
 	case "zsh":
-		paths := []string{"/opt/homebrew/share/zsh/site-functions/_fizzy", "/usr/local/share/zsh/site-functions/_fizzy"}
+		paths := []string{"/opt/homebrew/share/zsh/site-functions/_ponto", "/usr/local/share/zsh/site-functions/_ponto"}
 		if home != "" {
-			paths = append(paths, filepath.Join(home, ".zsh", "completions", "_fizzy"))
+			paths = append(paths, filepath.Join(home, ".zsh", "completions", "_ponto"))
 		}
 		for _, path := range paths {
 			if doctorPathExists(path) {
@@ -1079,7 +966,7 @@ func doctorCompletionPath(shell string) (bool, string) {
 		}
 	case "fish":
 		if home != "" {
-			path := filepath.Join(home, ".config", "fish", "completions", "fizzy.fish")
+			path := filepath.Join(home, ".config", "fish", "completions", "ponto.fish")
 			if doctorPathExists(path) {
 				return true, path
 			}
@@ -1097,7 +984,7 @@ func doctorZshrcHasCompletionEval() bool {
 	if err != nil {
 		return false
 	}
-	return strings.Contains(string(data), "fizzy completion zsh")
+	return strings.Contains(string(data), "ponto completion zsh")
 }
 
 func globalConfigPathForDoctor() string {
@@ -1138,7 +1025,7 @@ func resolveDoctorProfileContext() (string, *profile.Profile) {
 	}
 	resolved, err := profile.Resolve(profile.ResolveOptions{
 		FlagValue:      cfgProfile,
-		EnvVar:         profileEnvVar(),
+		EnvVar:         os.Getenv("PONTO_PROFILE"),
 		DefaultProfile: defaultName,
 		Profiles:       allProfiles,
 	})
@@ -1148,43 +1035,28 @@ func resolveDoctorProfileContext() (string, *profile.Profile) {
 	return resolved, allProfiles[resolved]
 }
 
-func doctorProfileBoard(p *profile.Profile) string {
-	if p == nil {
-		return ""
-	}
-	boardRaw, ok := p.Extra["board"]
-	if !ok {
-		return ""
-	}
-	var board string
-	if json.Unmarshal(boardRaw, &board) != nil {
-		return ""
-	}
-	return board
-}
-
-func doctorTokenSourceWithValue(account string, localCfg, globalCfg *config.Config) (string, string, string) {
+func doctorTokenSourceWithValue(profileName string, localCfg, globalCfg *config.Config) (string, string, string) {
 	if cfgToken != "" {
 		return "flag", "CLI flag", cfgToken
 	}
-	if envToken := os.Getenv("FIZZY_TOKEN"); envToken != "" {
+	if envToken := os.Getenv("PONTO_TOKEN"); envToken != "" {
 		return "env", "environment variable", envToken
 	}
 	if creds != nil {
-		if account != "" {
-			if token, err := credsLoadProfileToken(account); err == nil && token != "" {
+		if profileName != "" {
+			if token, err := credsLoadProfileToken(profileName); err == nil && token != "" {
 				if creds.UsingKeyring() {
 					return "keyring", "system keyring", token
 				}
 				return "fallback-file", "fallback credential file", token
 			}
-			if token, err := credsLoadLegacyToken(account); err == nil && token != "" {
+			if token, err := credsLoadLegacyToken(); err == nil && token != "" {
 				if creds.UsingKeyring() {
 					return "legacy-keyring", "legacy system keyring entry", token
 				}
 				return "legacy-fallback", "legacy fallback credential file", token
 			}
-		} else if token, err := credsLoadLegacyToken(""); err == nil && token != "" {
+		} else if token, err := credsLoadLegacyToken(); err == nil && token != "" {
 			if creds.UsingKeyring() {
 				return "legacy-keyring", "legacy system keyring entry", token
 			}
@@ -1225,7 +1097,7 @@ func checkDoctorSavedProfiles() DoctorCheck {
 		Name:    "Saved Profiles",
 		Status:  "pass",
 		Message: strings.Join(names, ", "),
-		Hint:    "Use: fizzy doctor --all-profiles to check each saved profile",
+		Hint:    "Use: ponto doctor --all-profiles to check each saved profile",
 	}
 }
 
@@ -1249,10 +1121,9 @@ func doctorTargetsFromProfileStore() []doctorEffectiveConfig {
 	targets := make([]doctorEffectiveConfig, 0, len(names))
 	for _, name := range names {
 		p := allProfiles[name]
-		board := doctorProfileBoard(p)
 		tokenRaw, tokenSource, token := doctorStoredTokenSourceForProfile(name, localCfg, globalCfg)
-		apiURL := config.DefaultAPIURL
-		apiURLSource := "default"
+		apiURL := ""
+		apiURLSource := "unset"
 		switch {
 		case p != nil && strings.TrimSpace(p.BaseURL) != "":
 			apiURL = p.BaseURL
@@ -1264,25 +1135,12 @@ func doctorTargetsFromProfileStore() []doctorEffectiveConfig {
 			apiURL = globalCfg.APIURL
 			apiURLSource = "global config"
 		}
-		boardSource := "unset"
-		switch {
-		case board != "":
-			boardSource = "profile store"
-		case localCfg != nil && strings.TrimSpace(localCfg.Board) != "":
-			board = localCfg.Board
-			boardSource = "local config"
-		case globalCfg != nil && strings.TrimSpace(globalCfg.Board) != "":
-			board = globalCfg.Board
-			boardSource = "global config"
-		}
 		targets = append(targets, doctorEffectiveConfig{
 			ProfileName:    name,
 			Default:        name == defaultName,
 			ProfileSource:  "profile store",
 			APIURL:         apiURL,
 			APIURLSource:   apiURLSource,
-			Board:          board,
-			BoardSource:    boardSource,
 			Token:          token,
 			TokenSourceRaw: tokenRaw,
 			TokenSource:    tokenSource,
@@ -1291,15 +1149,15 @@ func doctorTargetsFromProfileStore() []doctorEffectiveConfig {
 	return targets
 }
 
-func doctorStoredTokenSourceForProfile(account string, localCfg, globalCfg *config.Config) (string, string, string) {
+func doctorStoredTokenSourceForProfile(profileName string, localCfg, globalCfg *config.Config) (string, string, string) {
 	if creds != nil {
-		if token, err := credsLoadProfileToken(account); err == nil && token != "" {
+		if token, err := credsLoadProfileToken(profileName); err == nil && token != "" {
 			if creds.UsingKeyring() {
 				return "keyring", "system keyring", token
 			}
 			return "fallback-file", "fallback credential file", token
 		}
-		if token, err := credsLoadLegacyToken(account); err == nil && token != "" {
+		if token, err := credsLoadLegacyToken(); err == nil && token != "" {
 			if creds.UsingKeyring() {
 				return "legacy-keyring", "legacy system keyring entry", token
 			}
@@ -1315,25 +1173,11 @@ func doctorStoredTokenSourceForProfile(account string, localCfg, globalCfg *conf
 	return "none", "not configured", ""
 }
 
-func newDoctorClients(eff doctorEffectiveConfig) (client *fizzy.Client, accountClient *fizzy.AccountClient, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("cannot initialize SDK: %v", r)
-			client = nil
-			accountClient = nil
-		}
-	}()
-	sdkCfg := &fizzy.Config{BaseURL: eff.APIURL}
-	client = fizzy.NewClient(sdkCfg, &fizzy.StaticTokenProvider{Token: eff.Token}, fizzy.WithUserAgent("fizzy-cli/"+currentVersion()))
-	accountClient = client.ForAccount(eff.ProfileName)
-	return client, accountClient, nil
-}
-
 func doctorLoginHint(profileName string) string {
 	if strings.TrimSpace(profileName) == "" {
-		return "Run: fizzy auth login <token>"
+		return "Run: ponto auth login <token>"
 	}
-	return fmt.Sprintf("Run: fizzy auth login <token> --profile %s", profileName)
+	return fmt.Sprintf("Run: ponto auth login <token> --profile %s", profileName)
 }
 
 func firstNonEmpty(values ...string) string {

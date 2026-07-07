@@ -6,11 +6,11 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/alextakitani/ponto-cli/internal/config"
+	"github.com/alextakitani/ponto-cli/internal/errors"
+	"github.com/alextakitani/ponto-cli/internal/harness"
+	"github.com/alextakitani/ponto-cli/skills"
 	"github.com/basecamp/cli/output"
-	"github.com/basecamp/fizzy-cli/internal/config"
-	"github.com/basecamp/fizzy-cli/internal/errors"
-	"github.com/basecamp/fizzy-cli/internal/harness"
-	"github.com/basecamp/fizzy-cli/skills"
 	"github.com/charmbracelet/huh"
 	"github.com/spf13/cobra"
 )
@@ -25,11 +25,11 @@ type SkillLocation struct {
 }
 
 var skillLocations = []SkillLocation{
-	{Name: "Agents (Shared)", Path: "~/.agents/skills/fizzy/SKILL.md"},
-	{Name: "Claude Code (Global)", Path: "~/.claude/skills/fizzy/SKILL.md"},
-	{Name: "Claude Code (Project)", Path: ".claude/skills/fizzy/SKILL.md"},
-	{Name: "OpenCode (Global)", Path: "~/.config/opencode/skill/fizzy/SKILL.md"},
-	{Name: "OpenCode (Project)", Path: ".opencode/skill/fizzy/SKILL.md"},
+	{Name: "Agents (Shared)", Path: "~/.agents/skills/ponto/SKILL.md"},
+	{Name: "Claude Code (Global)", Path: "~/.claude/skills/ponto/SKILL.md"},
+	{Name: "Claude Code (Project)", Path: ".claude/skills/ponto/SKILL.md"},
+	{Name: "OpenCode (Global)", Path: "~/.config/opencode/skill/ponto/SKILL.md"},
+	{Name: "OpenCode (Project)", Path: ".opencode/skill/ponto/SKILL.md"},
 	{Name: "Codex (Global)", Path: codexGlobalSkillPath()},
 }
 
@@ -66,8 +66,8 @@ func runSkill(cmd *cobra.Command, args []string) error {
 func newSkillInstallCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "install",
-		Short: "Install the fizzy agent skill",
-		Long:  "Copies the embedded SKILL.md to ~/.agents/skills/fizzy/ and creates a symlink in ~/.claude/skills/fizzy (if Claude Code is detected).",
+		Short: "Install the ponto agent skill",
+		Long:  "Copies the embedded SKILL.md to ~/.agents/skills/ponto/ and creates a symlink in ~/.claude/skills/ponto (if Claude Code is detected).",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			skillPath, err := installSkillFiles()
 			if err != nil {
@@ -90,7 +90,7 @@ func newSkillInstallCmd() *cobra.Command {
 				}
 			}
 
-			summary := "Fizzy skill installed"
+			summary := "Ponto skill installed"
 			if out != nil {
 				printMutation(result, summary, nil)
 				return nil
@@ -102,14 +102,14 @@ func newSkillInstallCmd() *cobra.Command {
 }
 
 func readEmbeddedSkill() ([]byte, error) {
-	data, err := skills.FS.ReadFile("fizzy/SKILL.md")
+	data, err := skills.FS.ReadFile("ponto/SKILL.md")
 	if err != nil {
 		return nil, fmt.Errorf("reading embedded skill: %w", err)
 	}
 	return data, nil
 }
 
-// installSkillFiles writes the embedded SKILL.md to ~/.agents/skills/fizzy/
+// installSkillFiles writes the embedded SKILL.md to ~/.agents/skills/ponto/
 // and returns the path to the installed file.
 func installSkillFiles() (string, error) {
 	home, err := os.UserHomeDir()
@@ -117,7 +117,7 @@ func installSkillFiles() (string, error) {
 		return "", fmt.Errorf("getting home directory: %w", err)
 	}
 
-	skillDir := filepath.Join(home, ".agents", "skills", "fizzy")
+	skillDir := filepath.Join(home, ".agents", "skills", "ponto")
 	skillFile := filepath.Join(skillDir, skillFilename)
 
 	data, err := readEmbeddedSkill()
@@ -140,7 +140,7 @@ func installSkillFiles() (string, error) {
 // runSkillWizard runs the interactive skill installation wizard.
 func runSkillWizard() error {
 	fmt.Println()
-	fmt.Println("Fizzy Skill Installation")
+	fmt.Println("Ponto Skill Installation")
 	fmt.Println()
 
 	// Build options
@@ -153,7 +153,7 @@ func runSkillWizard() error {
 
 	var selectedPath string
 	err := huh.NewSelect[string]().
-		Title("Where would you like to install the Fizzy skill?").
+		Title("Where would you like to install the Ponto skill?").
 		Options(options...).
 		Value(&selectedPath).
 		Run()
@@ -168,7 +168,7 @@ func runSkillWizard() error {
 		err = huh.NewInput().
 			Title("Enter custom path").
 			Description("You can enter a directory or full path ending in SKILL.md").
-			Placeholder("/path/to/skills/fizzy/SKILL.md").
+			Placeholder("/path/to/skills/ponto/SKILL.md").
 			Value(&selectedPath).
 			Validate(func(s string) error {
 				if s == "" {
@@ -216,10 +216,10 @@ func runSkillWizard() error {
 		return &output.Error{Code: output.CodeAPI, Message: fmt.Sprintf("writing skill file: %v", err)}
 	}
 
-	// Also write to canonical location (~/.agents/skills/fizzy/)
+	// Also write to canonical location (~/.agents/skills/ponto/)
 	home, homeErr := os.UserHomeDir()
 	if homeErr == nil {
-		canonicalDir := filepath.Join(home, ".agents", "skills", "fizzy")
+		canonicalDir := filepath.Join(home, ".agents", "skills", "ponto")
 		canonicalFile := filepath.Join(canonicalDir, skillFilename)
 		if canonicalFile != expandedPath {
 			_ = os.MkdirAll(canonicalDir, 0o755)         // #nosec G301 -- skill files are not secrets //nolint:gosec
@@ -229,14 +229,14 @@ func runSkillWizard() error {
 	}
 
 	fmt.Println()
-	fmt.Println("Fizzy skill installed successfully!")
+	fmt.Println("Ponto skill installed successfully!")
 	fmt.Println()
 	fmt.Printf("Location: %s\n", sanitizeLogValue(expandedPath))
 
 	return nil
 }
 
-// normalizeSkillPath appends fizzy/SKILL.md to directory paths.
+// normalizeSkillPath appends ponto/SKILL.md to directory paths.
 // Explicit file paths (any .md) are left as-is.
 func normalizeSkillPath(path string) string {
 	path = strings.TrimSpace(path)
@@ -246,22 +246,22 @@ func normalizeSkillPath(path string) string {
 		return path
 	}
 
-	// Directory ending in "fizzy" — just append SKILL.md
-	if strings.HasSuffix(path, "fizzy") || strings.HasSuffix(path, "fizzy/") ||
-		strings.HasSuffix(path, "fizzy\\") {
+	// Directory ending in "ponto" — just append SKILL.md
+	if strings.HasSuffix(path, "ponto") || strings.HasSuffix(path, "ponto/") ||
+		strings.HasSuffix(path, "ponto\\") {
 		return filepath.Join(path, skillFilename)
 	}
 
-	// Bare directory — append fizzy/SKILL.md
-	return filepath.Join(path, "fizzy", skillFilename)
+	// Bare directory — append ponto/SKILL.md
+	return filepath.Join(path, "ponto", skillFilename)
 }
 
 func codexGlobalSkillPath() string {
 	codexHome := strings.TrimSpace(os.Getenv("CODEX_HOME"))
 	if codexHome == "" {
-		return "~/.codex/skills/fizzy/SKILL.md"
+		return "~/.codex/skills/ponto/SKILL.md"
 	}
-	return filepath.Join(codexHome, "skills", "fizzy", skillFilename)
+	return filepath.Join(codexHome, "skills", "ponto", skillFilename)
 }
 
 // expandSkillPath expands ~ to home directory.
@@ -304,7 +304,7 @@ func fileExists(path string) bool {
 	return err == nil
 }
 
-// linkSkillToClaude creates a symlink at ~/.claude/skills/fizzy pointing to
+// linkSkillToClaude creates a symlink at ~/.claude/skills/ponto pointing to
 // the baseline skill directory. Returns (symlinkPath, notice, error).
 func linkSkillToClaude() (string, string, error) {
 	home, err := os.UserHomeDir()
@@ -312,9 +312,9 @@ func linkSkillToClaude() (string, string, error) {
 		return "", "", fmt.Errorf("getting home directory: %w", err)
 	}
 
-	skillDir := filepath.Join(home, ".agents", "skills", "fizzy")
+	skillDir := filepath.Join(home, ".agents", "skills", "ponto")
 	symlinkDir := filepath.Join(home, ".claude", "skills")
-	symlinkPath := filepath.Join(symlinkDir, "fizzy")
+	symlinkPath := filepath.Join(symlinkDir, "ponto")
 
 	if err := os.MkdirAll(symlinkDir, 0o755); err != nil { // #nosec G301 -- skill files are not secrets //nolint:gosec
 		return "", "", fmt.Errorf("creating symlink directory: %w", err)
@@ -323,7 +323,7 @@ func linkSkillToClaude() (string, string, error) {
 	// Remove existing entry at symlink path (idempotent)
 	_ = os.Remove(symlinkPath)
 
-	symlinkTarget := filepath.Join("..", "..", ".agents", "skills", "fizzy")
+	symlinkTarget := filepath.Join("..", "..", ".agents", "skills", "ponto")
 	notice := ""
 	if err := os.Symlink(symlinkTarget, symlinkPath); err != nil {
 		// Fallback: copy skill files directly
@@ -343,7 +343,7 @@ func installedSkillVersion() string {
 	if err != nil {
 		return ""
 	}
-	data, err := os.ReadFile(filepath.Join(home, ".agents", "skills", "fizzy", installedVersionFile))
+	data, err := os.ReadFile(filepath.Join(home, ".agents", "skills", "ponto", installedVersionFile))
 	if err != nil {
 		return ""
 	}
@@ -418,7 +418,7 @@ func refreshAllInstalledSkills() bool {
 
 	if failed == 0 && updated > 0 {
 		if home, err := os.UserHomeDir(); err == nil {
-			baselineDir := filepath.Join(home, ".agents", "skills", "fizzy")
+			baselineDir := filepath.Join(home, ".agents", "skills", "ponto")
 			_ = os.WriteFile(filepath.Join(baselineDir, installedVersionFile), []byte(currentVersion()), 0o644) // #nosec G306 -- not a secret //nolint:gosec
 		}
 	}
@@ -426,7 +426,7 @@ func refreshAllInstalledSkills() bool {
 	return updated > 0 && failed == 0
 }
 
-// repairClaudeSkillLink repairs a broken symlink at ~/.claude/skills/fizzy.
+// repairClaudeSkillLink repairs a broken symlink at ~/.claude/skills/ponto.
 // If the path is a directory (copy fallback), the file refresh already handled it.
 func repairClaudeSkillLink() {
 	home, err := os.UserHomeDir()
@@ -434,7 +434,7 @@ func repairClaudeSkillLink() {
 		return
 	}
 
-	symlinkPath := filepath.Join(home, ".claude", "skills", "fizzy")
+	symlinkPath := filepath.Join(home, ".claude", "skills", "ponto")
 	info, err := os.Lstat(symlinkPath)
 	if err != nil {
 		return
@@ -474,13 +474,13 @@ func copySkillFiles(src, dst string) error {
 	return nil
 }
 
-// baselineSkillInstalled returns true if ~/.agents/skills/fizzy/SKILL.md exists.
+// baselineSkillInstalled returns true if ~/.agents/skills/ponto/SKILL.md exists.
 func baselineSkillInstalled() bool {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return false
 	}
-	_, err = os.Stat(filepath.Join(home, ".agents", "skills", "fizzy", skillFilename))
+	_, err = os.Stat(filepath.Join(home, ".agents", "skills", "ponto", skillFilename))
 	return err == nil
 }
 

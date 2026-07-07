@@ -94,12 +94,12 @@ jobs:
 
       - name: Generate shell completions
         run: |
-          go build -o fizzy-tmp ./cmd/fizzy
+          go build -o ponto-tmp ./cmd/ponto
           mkdir -p completions
-          ./fizzy-tmp completion bash > completions/fizzy.bash
-          ./fizzy-tmp completion zsh > completions/fizzy.zsh
-          ./fizzy-tmp completion fish > completions/fizzy.fish
-          rm fizzy-tmp
+          ./ponto-tmp completion bash > completions/ponto.bash
+          ./ponto-tmp completion zsh > completions/ponto.zsh
+          ./ponto-tmp completion fish > completions/ponto.fish
+          rm ponto-tmp
 
       - name: Run GoReleaser
         uses: goreleaser/goreleaser-action@5daf1e915a5f0af01ddbcd89a43b8061ff4f1a89 # v7.2.2

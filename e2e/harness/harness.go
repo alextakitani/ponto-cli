@@ -1,4 +1,4 @@
-// Package harness provides a test harness for end-to-end testing of the Fizzy CLI by
+// Package harness provides a test harness for end-to-end testing of the Ponto CLI by
 // executing the CLI binary and capturing stdout, stderr, and exit codes.
 package harness
 
@@ -19,8 +19,8 @@ type Harness struct {
 	// Token is the API access token
 	Token string
 
-	// Account is the account slug
-	Account string
+	// Profile is the named CLI profile
+	Profile string
 
 	// APIURL is the API base URL
 	APIURL string
@@ -79,7 +79,7 @@ type Result struct {
 type Config struct {
 	BinaryPath string
 	Token      string
-	Account    string
+	Profile    string
 	APIURL     string
 	UserID     string
 }
@@ -106,17 +106,17 @@ const (
 // LoadConfig loads test configuration from environment variables.
 func LoadConfig() *Config {
 	repoRoot, _ := RepoRoot()
-	defaultBinary := "./bin/fizzy"
+	defaultBinary := "./bin/ponto"
 	if repoRoot != "" {
-		defaultBinary = filepath.Join(repoRoot, "bin", "fizzy")
+		defaultBinary = filepath.Join(repoRoot, "bin", "ponto")
 	}
 
 	return &Config{
-		BinaryPath: getEnvOrDefault("FIZZY_TEST_BINARY", defaultBinary),
-		Token:      os.Getenv("FIZZY_TEST_TOKEN"),
-		Account:    os.Getenv("FIZZY_TEST_ACCOUNT"),
-		APIURL:     getEnvOrDefault("FIZZY_TEST_API_URL", "https://app.fizzy.do"),
-		UserID:     os.Getenv("FIZZY_TEST_USER_ID"),
+		BinaryPath: getEnvOrDefault("PONTO_TEST_BINARY", defaultBinary),
+		Token:      os.Getenv("PONTO_TEST_TOKEN"),
+		Profile:    os.Getenv("PONTO_TEST_PROFILE"),
+		APIURL:     os.Getenv("PONTO_TEST_API_URL"),
+		UserID:     os.Getenv("PONTO_TEST_USER_ID"),
 	}
 }
 
@@ -124,10 +124,10 @@ func LoadConfig() *Config {
 func (c *Config) MissingVars() []string {
 	var missing []string
 	if c.Token == "" {
-		missing = append(missing, "FIZZY_TEST_TOKEN")
+		missing = append(missing, "PONTO_TEST_TOKEN")
 	}
-	if c.Account == "" {
-		missing = append(missing, "FIZZY_TEST_ACCOUNT")
+	if c.APIURL == "" {
+		missing = append(missing, "PONTO_TEST_API_URL")
 	}
 	return missing
 }
@@ -146,13 +146,13 @@ func New(t *testing.T) *Harness {
 	cfg := LoadConfig()
 
 	if cfg.Token == "" {
-		t.Skip("FIZZY_TEST_TOKEN not set, skipping integration tests")
+		t.Skip("PONTO_TEST_TOKEN not set, skipping integration tests")
 	}
-	if cfg.Account == "" {
-		t.Skip("FIZZY_TEST_ACCOUNT not set, skipping integration tests")
+	if cfg.APIURL == "" {
+		t.Skip("PONTO_TEST_API_URL not set, skipping integration tests")
 	}
 
-	tmpDir, err := os.MkdirTemp("", "fizzy-e2e-*")
+	tmpDir, err := os.MkdirTemp("", "ponto-e2e-*")
 	if err != nil {
 		t.Fatalf("failed to create temp config dir: %v", err)
 	}
@@ -161,7 +161,7 @@ func New(t *testing.T) *Harness {
 	return &Harness{
 		BinaryPath: cfg.BinaryPath,
 		Token:      cfg.Token,
-		Account:    cfg.Account,
+		Profile:    cfg.Profile,
 		APIURL:     cfg.APIURL,
 		Cleanup:    NewCleanupTracker(),
 		configHome: tmpDir,
@@ -173,7 +173,7 @@ func New(t *testing.T) *Harness {
 func NewWithConfig(t *testing.T, cfg *Config) *Harness {
 	t.Helper()
 
-	tmpDir, err := os.MkdirTemp("", "fizzy-e2e-*")
+	tmpDir, err := os.MkdirTemp("", "ponto-e2e-*")
 	if err != nil {
 		t.Fatalf("failed to create temp config dir: %v", err)
 	}
@@ -182,7 +182,7 @@ func NewWithConfig(t *testing.T, cfg *Config) *Harness {
 	return &Harness{
 		BinaryPath: cfg.BinaryPath,
 		Token:      cfg.Token,
-		Account:    cfg.Account,
+		Profile:    cfg.Profile,
 		APIURL:     cfg.APIURL,
 		Cleanup:    NewCleanupTracker(),
 		configHome: tmpDir,
@@ -203,7 +203,7 @@ func (h *Harness) RunWithEnv(env map[string]string, args ...string) *Result {
 	// Build full argument list with global options
 	fullArgs := h.buildArgs(args...)
 
-	// Merge global env (FIZZY_PROFILE) with caller-provided env
+	// Merge global env (PONTO_PROFILE) with caller-provided env
 	mergedEnv := h.globalEnv()
 	for k, v := range env {
 		mergedEnv[k] = v
@@ -229,7 +229,7 @@ func (h *Harness) RunWithEnv(env map[string]string, args ...string) *Result {
 func (h *Harness) RunWithoutAuth(args ...string) *Result {
 	h.t.Helper()
 
-	// Execute without global options (no token/account)
+	// Execute without global options (no token/profile)
 	result := Execute(h.BinaryPath, args, nil)
 
 	// Try to parse JSON response
@@ -259,10 +259,9 @@ func (h *Harness) buildArgs(args ...string) []string {
 // Uses a temporary HOME to isolate from host config/keyring.
 func (h *Harness) globalEnv() map[string]string {
 	return map[string]string{
-		"FIZZY_PROFILE":    h.Account,
-		"FIZZY_ACCOUNT":    "",
-		"FIZZY_TOKEN":      "",
-		"FIZZY_NO_KEYRING": "1",
+		"PONTO_PROFILE":    h.Profile,
+		"PONTO_TOKEN":      "",
+		"PONTO_NO_KEYRING": "1",
 		"HOME":             h.configHome,
 		"XDG_CONFIG_HOME":  filepath.Join(h.configHome, "config"),
 		"XDG_DATA_HOME":    filepath.Join(h.configHome, "data"),

@@ -1,4 +1,4 @@
-// Package errors defines error types and exit codes for the Fizzy CLI.
+// Package errors defines error types and exit codes for the Ponto CLI.
 // Types and constants are thin re-exports from the shared output package.
 package errors
 
@@ -42,10 +42,10 @@ func NewInvalidArgsError(message string) *CLIError {
 	return &output.Error{Code: output.CodeUsage, Message: message}
 }
 
-// NewAuthError creates an authentication error with a fizzy-specific hint.
+// NewAuthError creates an authentication error with a ponto-specific hint.
 func NewAuthError(message string) *CLIError {
 	e := output.ErrAuth(message)
-	e.Hint = "Run 'fizzy auth login TOKEN' or set FIZZY_TOKEN"
+	e.Hint = "Run 'ponto auth login TOKEN' or set PONTO_TOKEN"
 	return e
 }
 
@@ -124,7 +124,7 @@ func FromHTTPStatus(status int, message string) *CLIError {
 	switch status {
 	case 401:
 		e := output.ErrAuth(message)
-		e.Hint = "Run 'fizzy auth login TOKEN' or set FIZZY_TOKEN"
+		e.Hint = "Run 'ponto auth login TOKEN' or set PONTO_TOKEN"
 		return e
 	case 403:
 		return NewForbiddenError(message)

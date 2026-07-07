@@ -1,27 +1,27 @@
 #!/usr/bin/env bash
-# session-start.sh - Fizzy plugin liveness check
+# session-start.sh - Ponto plugin liveness check
 #
 # Lightweight: one subprocess call. Context priming happens on first
-# use via the /fizzy skill, not here.
+# use via the /ponto skill, not here.
 
 set -euo pipefail
 
-if ! command -v fizzy &>/dev/null; then
+if ! command -v ponto &>/dev/null; then
   cat << 'EOF'
 <hook-output>
-Fizzy plugin active — CLI not found on PATH.
-Install: https://github.com/basecamp/fizzy-cli#installation
+Ponto plugin active — CLI not found on PATH.
+Install: https://github.com/alextakitani/ponto-cli#installation
 </hook-output>
 EOF
   exit 0
 fi
 
-auth_json=$(fizzy auth status --json 2>/dev/null || echo '{}')
+auth_json=$(ponto auth status --json 2>/dev/null || echo '{}')
 
 if ! command -v jq &>/dev/null; then
   cat << 'EOF'
 <hook-output>
-Fizzy plugin active.
+Ponto plugin active.
 </hook-output>
 EOF
   exit 0
@@ -35,14 +35,14 @@ fi
 if [[ "$is_auth" == "true" ]]; then
   cat << 'EOF'
 <hook-output>
-Fizzy plugin active.
+Ponto plugin active.
 </hook-output>
 EOF
 else
   cat << 'EOF'
 <hook-output>
-Fizzy plugin active — not authenticated.
-Run: fizzy setup
+Ponto plugin active — not authenticated.
+Run: ponto setup
 </hook-output>
 EOF
 fi

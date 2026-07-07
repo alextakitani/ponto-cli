@@ -191,9 +191,10 @@ func renderCommandHelp(cmd *cobra.Command, w io.Writer) {
 
 func setRootHelpMetadata(cmd *cobra.Command) {
 	cmd.Example = strings.Join([]string{
-		"$ ponto auth status",
+		"$ ponto timer start --description \"code review\"",
+		"$ ponto timer status",
+		"$ ponto entry create --start \"2026-07-06 09:00\" --end \"2026-07-06 10:30\"",
 		"$ ponto doctor",
-		"$ ponto config show",
 		"$ ponto commands --json",
 	}, "\n")
 }
@@ -368,21 +369,33 @@ func printExampleBlock(w io.Writer, example string) {
 	}
 }
 
-var rootCommandGroupsOrder = []string{"core", "getting-started", "discover"}
+var rootCommandGroupsOrder = []string{"tracking", "catalog", "core", "getting-started", "discover"}
 
 var rootCommandGroupTitles = map[string]string{
+	"tracking":        "TRACKING",
+	"catalog":         "CATALOG",
 	"core":            "CORE COMMANDS",
 	"getting-started": "GETTING STARTED",
 	"discover":        "DISCOVER",
 }
 
 var rootCommandGroups = map[string][]string{
+	"tracking":        {"timer", "entry"},
+	"catalog":         {"client", "project", "task", "tag"},
 	"core":            {"auth"},
 	"getting-started": {"setup"},
 	"discover":        {"doctor", "config", "commands", "skill", "completion", "version"},
 }
 
 var commandExamples = map[string]string{
+	"ponto timer":          "$ ponto timer start --description \"code review\"\n$ ponto timer status\n$ ponto timer stop",
+	"ponto timer start":    "$ ponto timer start --project 7 --description \"ingress migration\"\n$ ponto timer start --no-project",
+	"ponto entry":          "$ ponto entry list\n$ ponto entry create --start \"2026-07-06 09:00\" --end \"2026-07-06 10:30\"",
+	"ponto entry create":   "$ ponto entry create --start \"2026-07-06 09:00\" --end \"2026-07-06 10:30\" --project 7 --tag 1",
+	"ponto client":         "$ ponto client list\n$ ponto client create --name Acme --currency BRL --rate-cents 15000",
+	"ponto project":        "$ ponto project list\n$ ponto project create --name Website --client 1\n$ ponto project default 7",
+	"ponto task":           "$ ponto task list --project 7\n$ ponto task create --project 7 --name Infra",
+	"ponto tag":            "$ ponto tag list\n$ ponto tag create --name backend",
 	"ponto auth":           "$ ponto auth status\n$ ponto auth login TOKEN --profile acme",
 	"ponto auth status":    "$ ponto auth status",
 	"ponto auth list":      "$ ponto auth list\n$ ponto auth switch acme",

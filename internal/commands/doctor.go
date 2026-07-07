@@ -621,14 +621,15 @@ func checkDoctorAPIReachability(ctx context.Context, eff doctorEffectiveConfig, 
 	if eff.APIURL == "" {
 		return DoctorCheck{Name: "API Reachability", Status: "fail", Message: "No API URL configured", Hint: "Run: ponto setup"}
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, eff.APIURL, nil)
+	base := strings.TrimRight(eff.APIURL, "/")
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"/timer", nil)
 	if err != nil {
 		return DoctorCheck{Name: "API Reachability", Status: "fail", Message: "Cannot build API request", Hint: err.Error()}
 	}
 	start := time.Now()
 	resp, err := (&http.Client{Timeout: 5 * time.Second}).Do(req)
 	if err != nil {
-		return DoctorCheck{Name: "API Reachability", Status: "fail", Message: "Cannot reach API host", Hint: err.Error()}
+		return DoctorCheck{Name: "API Reachability", Status: "fail", Message: "Cannot reach API", Hint: err.Error()}
 	}
 	defer resp.Body.Close()
 	latency := time.Since(start)
@@ -640,9 +641,9 @@ func checkDoctorAPIReachability(ctx context.Context, eff doctorEffectiveConfig, 
 			Hint:    "Check service status and try again",
 		}
 	}
-	msg := "API host reachable"
+	msg := "API reachable"
 	if verbose {
-		msg = fmt.Sprintf("API host reachable (%d, %dms)", resp.StatusCode, latency.Milliseconds())
+		msg = fmt.Sprintf("API reachable (%d, %dms)", resp.StatusCode, latency.Milliseconds())
 	}
 	return DoctorCheck{Name: "API Reachability", Status: "pass", Message: msg}
 }
@@ -650,7 +651,7 @@ func checkDoctorAPIReachability(ctx context.Context, eff doctorEffectiveConfig, 
 func checkDoctorAuthentication(ctx context.Context, eff doctorEffectiveConfig, verbose bool) DoctorCheck {
 	start := time.Now()
 	base := strings.TrimRight(eff.APIURL, "/")
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"/api/v1/timer/status", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, base+"/timer", nil)
 	if err != nil {
 		return DoctorCheck{Name: "Authentication", Status: "fail", Message: "Cannot build auth request", Hint: err.Error()}
 	}

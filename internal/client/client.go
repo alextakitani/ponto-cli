@@ -325,12 +325,15 @@ func parseRetryAfter(value string) time.Duration {
 func (c *Client) errorFromResponse(status int, body []byte, header http.Header) error {
 	// Try to parse error message from response
 	var errResp struct {
-		Error string `json:"error"`
+		Error  string   `json:"error"`
+		Errors []string `json:"errors"`
 	}
 
 	message := http.StatusText(status)
 	if json.Unmarshal(body, &errResp) == nil && errResp.Error != "" {
 		message = errResp.Error
+	} else if len(errResp.Errors) > 0 {
+		message = strings.Join(errResp.Errors, "; ")
 	}
 
 	if status == 429 {

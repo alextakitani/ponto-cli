@@ -5,6 +5,7 @@ import (
 	"net/url"
 	"strings"
 
+	"github.com/alextakitani/ponto-cli/internal/client"
 	"github.com/alextakitani/ponto-cli/internal/config"
 	"github.com/alextakitani/ponto-cli/internal/errors"
 	"github.com/basecamp/cli/output"
@@ -93,12 +94,65 @@ func runSetup(cmd *cobra.Command, args []string) error {
 		return nil //nolint:nilerr // user cancelled prompt
 	}
 
+	if _, err := client.New(apiURL, token).Get("/timer"); err != nil {
+		return fmt.Errorf("could not validate API token with GET /timer: %w", err)
+	}
+
 	profileName := cfgProfile
 	if profileName == "" && cfg != nil {
 		profileName = cfg.Profile
 	}
 	if profileName == "" {
-		profileName = "default"
+		profileName = "prod"
+		if u, err := url.Parse(apiURL); err == nil {
+			host := u.Hostname()
+			if host == "localhost" || host == "127.0.0.1" || host == "::1" || strings.HasSuffix(host, ".localhost") {
+				profileName = "dev"
+			}
+		}
+	}
+	err = huh.NewInput().
+		Title("Choose a profile name").
+		Placeholder(profileName).
+		Value(&profileName).
+		Validate(func(s string) error {
+			if strings.TrimSpace(s) == "" {
+				return fmt.Errorf("profile name is required")
+			}
+			return nil
+		}).
+		Run()
+	if err != nil {
+		fmt.Println("Setup cancelled.")
+		return nil //nolint:nilerr // user cancelled prompt
+	}
+
+	defaultProjectID := ""
+	projectsResp, projectsErr := client.New(apiURL, token).Get("/projects")
+	if projectsErr == nil {
+		options := []huh.Option[string]{huh.NewOption("Skip", "")}
+		if projects, ok := projectsResp.Data.([]any); ok {
+			for _, item := range projects {
+				if project, ok := item.(map[string]any); ok {
+					id, idOK := project["id"].(float64)
+					name, nameOK := project["name"].(string)
+					if idOK && nameOK {
+						options = append(options, huh.NewOption(fmt.Sprintf("%s (#%.0f)", name, id), fmt.Sprintf("%.0f", id)))
+					}
+				}
+			}
+		}
+		if len(options) > 1 {
+			err = huh.NewSelect[string]().
+				Title("Save a local default project in this profile?").
+				Options(options...).
+				Value(&defaultProjectID).
+				Run()
+			if err != nil {
+				fmt.Println("Setup cancelled.")
+				return nil //nolint:nilerr // user cancelled prompt
+			}
+		}
 	}
 
 	var saveGlobal bool
@@ -131,7 +185,7 @@ func runSetup(cmd *cobra.Command, args []string) error {
 			}
 		}
 
-		ensureProfile(profileName, apiURL, "")
+		ensureProfile(profileName, apiURL, defaultProjectID)
 		if profiles != nil {
 			_ = profiles.SetDefault(profileName)
 		}

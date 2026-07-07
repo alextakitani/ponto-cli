@@ -21,14 +21,18 @@ type commandInfo struct {
 	Subcommands []commandInfo `json:"subcommands,omitempty"`
 }
 
-var commandCatalogOrder = []string{"core", "utilities"}
+var commandCatalogOrder = []string{"tracking", "catalog", "core", "utilities"}
 
 var commandCatalogTitles = map[string]string{
+	"tracking":  "TRACKING COMMANDS",
+	"catalog":   "CATALOG COMMANDS",
 	"core":      "CORE COMMANDS",
 	"utilities": "SETUP & TOOLS",
 }
 
 var commandCatalogGroups = map[string][]string{
+	"tracking":  {"timer", "entry"},
+	"catalog":   {"client", "project", "task", "tag"},
 	"core":      {"auth"},
 	"utilities": {"setup", "completion", "doctor", "config", "skill", "commands", "version"},
 }

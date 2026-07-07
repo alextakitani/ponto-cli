@@ -123,7 +123,63 @@ func newCatalogCmd(resource, plural, bodyKey string, cols render.Columns, flags 
 	}
 
 	parent.AddCommand(listCmd, showCmd, createCmd, updateCmd, deleteCmd)
+	parent.AddCommand(newArchivalCmd(resource, plural, archiveBreadcrumbs), newUnarchivalCmd(resource, plural, listBreadcrumbs))
 	return parent
+}
+
+type archivalBreadcrumbFunc func(resource, plural, id string, data any) []Breadcrumb
+
+func newArchivalCmd(resource, plural string, breadcrumbs archivalBreadcrumbFunc) *cobra.Command {
+	return &cobra.Command{
+		Use:   "archive ID",
+		Short: "Archive a " + resource,
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			c, err := domainClient()
+			if err != nil {
+				return err
+			}
+			resp, err := c.Post("/"+plural+"/"+args[0]+"/archival", nil)
+			if err != nil {
+				return err
+			}
+			printMutation(resp.Data, titleWord(resource)+" archived", breadcrumbs(resource, plural, args[0], resp.Data))
+			return nil
+		},
+	}
+}
+
+func newUnarchivalCmd(resource, plural string, breadcrumbs archivalBreadcrumbFunc) *cobra.Command {
+	return &cobra.Command{
+		Use:   "unarchive ID",
+		Short: "Unarchive a " + resource,
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			c, err := domainClient()
+			if err != nil {
+				return err
+			}
+			resp, err := c.Delete("/" + plural + "/" + args[0] + "/archival")
+			if err != nil {
+				return err
+			}
+			printMutation(resp.Data, titleWord(resource)+" unarchived", breadcrumbs(resource, plural, args[0], resp.Data))
+			return nil
+		},
+	}
+}
+
+func archiveBreadcrumbs(resource, plural, id string, _ any) []Breadcrumb {
+	return []Breadcrumb{
+		breadcrumb("show", "ponto "+resource+" show "+id, "Show this "+resource),
+		breadcrumb("list_archived", "ponto "+resource+" list --archived", "List archived "+plural),
+	}
+}
+
+func listBreadcrumbs(resource, plural, _ string, _ any) []Breadcrumb {
+	return []Breadcrumb{
+		breadcrumb("list", "ponto "+resource+" list", "List "+plural),
+	}
 }
 
 func flagsToBody(cmd *cobra.Command, body map[string]any) {

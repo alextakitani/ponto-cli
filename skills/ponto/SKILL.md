@@ -178,8 +178,52 @@ ponto tag update 5 --name infra
 ponto tag delete 5
 ```
 
-Do not invent archive/unarchive commands. The app's archival routes are
-HTML-only today and are intentionally not exposed by this CLI.
+## Archive / Unarchive
+
+Catalog resources can be archived and restored without deleting historical
+references:
+
+```bash
+ponto client archive 1
+ponto client unarchive 1
+ponto project archive 7
+```
+
+Tasks and tags use the same verbs:
+
+```bash
+ponto task archive 3
+ponto task unarchive 3
+ponto tag archive 5
+```
+
+List archived catalog records when the resource supports an archived list:
+
+```bash
+ponto client list --archived
+ponto project list --archived
+ponto tag list --archived
+```
+
+## Export
+
+Export the current month as CSV to the server-provided filename:
+
+```bash
+ponto export
+```
+
+Export a custom XLSX report to a specific path:
+
+```bash
+ponto export --format xlsx --period custom --from 2026-07-01 --to 2026-07-31 --output july.xlsx
+```
+
+Stream raw CSV bytes to stdout with no envelope:
+
+```bash
+ponto export --period week --client 1 --tag none --output -
+```
 
 ## Money
 

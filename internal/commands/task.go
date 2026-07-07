@@ -117,6 +117,45 @@ func init() {
 	taskCreateCmd.Flags().Int("project", 0, "Project ID")
 	taskCreateCmd.Flags().String("name", "", "Task name")
 	taskUpdateCmd.Flags().String("name", "", "Task name")
-	taskCmd.AddCommand(taskListCmd, taskShowCmd, taskCreateCmd, taskUpdateCmd, taskDeleteCmd)
+	taskCmd.AddCommand(
+		taskListCmd,
+		taskShowCmd,
+		taskCreateCmd,
+		taskUpdateCmd,
+		taskDeleteCmd,
+		newArchivalCmd("task", "tasks", taskArchiveBreadcrumbs),
+		newUnarchivalCmd("task", "tasks", taskListBreadcrumbs),
+	)
 	rootCmd.AddCommand(taskCmd)
+}
+
+func taskArchiveBreadcrumbs(resource, plural, id string, data any) []Breadcrumb {
+	breadcrumbs := []Breadcrumb{
+		breadcrumb("show", "ponto "+resource+" show "+id, "Show this "+resource),
+	}
+	return append(breadcrumbs, taskListBreadcrumbs(resource, plural, id, data)...)
+}
+
+func taskListBreadcrumbs(_ string, _ string, _ string, data any) []Breadcrumb {
+	cmd := "ponto task list"
+	description := "List tasks"
+	if projectID := projectIDFromTask(data); projectID != "" {
+		cmd += " --project " + projectID
+		description = "List project tasks"
+	}
+	return []Breadcrumb{
+		breadcrumb("list", cmd, description),
+	}
+}
+
+func projectIDFromTask(data any) string {
+	task, ok := data.(map[string]any)
+	if !ok {
+		return ""
+	}
+	projectID, ok := intFromAny(task["project_id"])
+	if !ok {
+		return ""
+	}
+	return strconv.FormatInt(projectID, 10)
 }

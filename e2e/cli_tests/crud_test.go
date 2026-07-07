@@ -2,6 +2,8 @@ package cli_tests
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -43,6 +45,10 @@ func TestCatalogAndEntryCRUD(t *testing.T) {
 	requireOK(t, clientShow)
 	clientUpdate := h.Run("client", "update", fmt.Sprintf("%d", clientID), "--note", "updated by e2e")
 	requireOK(t, clientUpdate)
+	clientArchive := h.Run("client", "archive", fmt.Sprintf("%d", clientID))
+	requireOK(t, clientArchive)
+	clientUnarchive := h.Run("client", "unarchive", fmt.Sprintf("%d", clientID))
+	requireOK(t, clientUnarchive)
 
 	project := h.Run("project", "create", "--name", "CLI Project "+suffix, "--client", fmt.Sprintf("%d", clientID), "--color", "#1e66f5")
 	requireOK(t, project)
@@ -109,4 +115,21 @@ func TestCatalogAndEntryCRUD(t *testing.T) {
 	splitAt := start.Add(15 * time.Minute)
 	entrySplit := h.Run("entry", "split", fmt.Sprintf("%d", entryID), "--at", splitAt.Format(time.RFC3339))
 	requireOK(t, entrySplit)
+}
+
+func TestReportExportCSV(t *testing.T) {
+	h := harness.New(t)
+	path := filepath.Join(t.TempDir(), "ponto-report.csv")
+	result := h.Run("export", "--format", "csv", "--period", "month", "--output", path)
+	requireOK(t, result)
+	if result.Response.Summary != "Report exported to "+path {
+		t.Fatalf("summary=%q", result.Response.Summary)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("export file missing: %v", err)
+	}
+	if info.Size() == 0 {
+		t.Fatalf("export file is empty")
+	}
 }

@@ -25,6 +25,48 @@ Configuration precedence is flags, environment, profile, local config, global
 config. Environment variables are `PONTO_TOKEN`, `PONTO_API_URL`, and
 `PONTO_PROFILE`. `api_url` is required because Ponto is self-hosted.
 
+## Pagination
+
+Every list command (`entry list`, `client list`, `project list`, `tag list`,
+`task list`) is server-paginated. By default you get **page 1 only** — do not
+assume the first response is the whole collection. Three flags control this:
+
+- `--all` — fetch every page and return them merged into one `data` array.
+  Use this whenever you need the complete set (counting, summing, finding an
+  item by name). The CLI walks the server's next-page links for you.
+- `--page N` — fetch one specific page (1-based).
+- `--per-page M` — server page size; maps to the API `?limit=`. The server
+  caps it at 100, so `--per-page 100` is the largest single request.
+
+```bash
+ponto entry list --all                 # every entry, merged
+ponto entry list --page 2 --per-page 50
+ponto client list --all --jq '.data | length'
+```
+
+Do NOT confuse `--per-page` with the global `--limit`: `--limit` only truncates
+how many rows are DISPLAYED client-side (and cannot be combined with `--all`);
+`--per-page` sets the server page size.
+
+When a paginated response is not the last page, the JSON envelope includes a
+`context.pagination` object so you can drive paging programmatically:
+
+```json
+{"context": {"pagination": {
+  "total": 137, "pages": 3, "page": 1, "per_page": 50,
+  "has_next": true, "next": 2, "prev": 0
+}}}
+```
+
+Detect "more pages exist" with `has_next`; the human summary shows
+`N of TOTAL <plural>` when a page is partial. Prefer `--all` over manual paging
+unless you specifically need one page.
+
+```bash
+# is there more than one page of entries?
+ponto entry list --jq '.context.pagination.has_next'
+```
+
 ## Timer
 
 There is at most one running timer per user. The server enforces this; do not
@@ -78,6 +120,23 @@ ponto entry list
 ponto entry show 43
 ponto entry delete 43
 ```
+
+Filter entries by date window (see also Pagination below). Both bounds are
+optional and combinable; `--since` is inclusive and `--until` is EXCLUSIVE
+(pass the start of the next period, e.g. next Monday 00:00, to exclude it):
+
+```bash
+# entries in July 2026 (upper bound is Aug 1, excluded)
+ponto entry list \
+  --since "2026-07-01T00:00:00-03:00" \
+  --until "2026-08-01T00:00:00-03:00"
+```
+
+`--since` / `--until` require a full ISO 8601 timestamp WITH an offset or `Z`.
+A bare date like `2026-07-06` is rejected by the server with
+`400 invalid since timestamp` — this is intentional (a malformed bound fails
+loudly instead of silently returning the wrong window). The filter is applied
+before pagination, so the reported total already reflects the window.
 
 Create a finished manual entry:
 

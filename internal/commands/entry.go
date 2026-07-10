@@ -2,6 +2,8 @@ package commands
 
 import (
 	"fmt"
+	"net/url"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -15,16 +17,43 @@ var entryCmd = &cobra.Command{
 var entryListCmd = &cobra.Command{
 	Use:   "list",
 	Short: "List time entries",
+	Long: `List time entries, newest first (includes the running timer).
+
+Pagination (server-side, shared by all list commands):
+  --all           fetch every page (follows the server's next-page links)
+  --page N        fetch a specific page (1-based; default page 1)
+  --per-page M    server page size (maps to the API ?limit=; server caps at 100)
+The JSON envelope reports progress under context.pagination
+(total, pages, page, per_page, has_next, next, prev).
+
+Date range (filters by started_at; both optional and combinable):
+  --since T       keep entries with started_at >= T (inclusive)
+  --until T       keep entries with started_at <  T (EXCLUSIVE upper bound)
+T must be a full ISO 8601 timestamp WITH offset or Z, e.g.
+"2026-07-06T00:00:00-03:00". A bare date ("2026-07-06") is rejected by the
+server with 400. Filtering happens before pagination, so the reported total
+already reflects the window.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if err := checkLimitAll(fetchAll(cmd)); err != nil {
+			return err
+		}
 		c, err := domainClient()
 		if err != nil {
 			return err
 		}
-		resp, err := c.Get("/time_entries")
+		values := url.Values{}
+		applyPaginationParams(cmd, values)
+		if since, _ := cmd.Flags().GetString("since"); strings.TrimSpace(since) != "" {
+			values.Set("since", strings.TrimSpace(since))
+		}
+		if until, _ := cmd.Flags().GetString("until"); strings.TrimSpace(until) != "" {
+			values.Set("until", strings.TrimSpace(until))
+		}
+		resp, err := c.GetWithPagination(queryPath("/time_entries", values), fetchAll(cmd))
 		if err != nil {
 			return err
 		}
-		printList(enrichPresentation(resp.Data), entryColumns, fmt.Sprintf("%d entries", dataCount(resp.Data)), []Breadcrumb{
+		printCollection(resp, enrichPresentation(resp.Data), entryColumns, "entries", fetchAll(cmd), []Breadcrumb{
 			breadcrumb("create", "ponto entry create --start \"2026-07-06 09:00\"", "Create a manual entry"),
 		})
 		return nil
@@ -241,6 +270,9 @@ func addEntryWriteFlags(cmd *cobra.Command) {
 func init() {
 	rootCmd.AddCommand(entryCmd)
 	entryCmd.AddCommand(entryListCmd, entryShowCmd, entryCreateCmd, entryUpdateCmd, entryDeleteCmd, entryDuplicateCmd, entrySplitCmd)
+	addPaginationFlags(entryListCmd)
+	entryListCmd.Flags().String("since", "", "Keep entries with started_at >= this ISO 8601 timestamp (inclusive; needs offset/Z)")
+	entryListCmd.Flags().String("until", "", "Keep entries with started_at < this ISO 8601 timestamp (exclusive; needs offset/Z)")
 	addEntryWriteFlags(entryCreateCmd)
 	addEntryWriteFlags(entryUpdateCmd)
 	entrySplitCmd.Flags().String("at", "", "Split timestamp (RFC3339 or YYYY-MM-DD HH:MM)")

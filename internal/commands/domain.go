@@ -23,6 +23,7 @@ func domainClient() (clientAPI, error) {
 
 type clientAPI interface {
 	Get(path string) (*client.APIResponse, error)
+	GetWithPagination(path string, fetchAll bool) (*client.APIResponse, error)
 	Post(path string, body any) (*client.APIResponse, error)
 	Patch(path string, body any) (*client.APIResponse, error)
 	Delete(path string) (*client.APIResponse, error)
@@ -148,6 +149,23 @@ func queryPath(base string, values url.Values) string {
 func addCommonListFlags(cmd *cobra.Command) {
 	cmd.Flags().Bool("archived", false, "List archived records")
 	cmd.Flags().String("query", "", "Search by name")
+	addPaginationFlags(cmd)
+}
+
+// addPaginationFlags registers the server-pagination flags shared by every
+// collection endpoint. These map to the Ponto API's ?page= / ?limit= params
+// and the X-* response headers (see docs/api.md §2 in the server repo).
+//
+//   - --all      fetch every page (walks X-Next-Page) into one list
+//   - --page N   fetch a specific page (1-based; default page 1)
+//   - --per-page M  server page size, mapped to ?limit= (server caps at 100)
+//
+// Note: the global --limit flag is unrelated — it only truncates how many rows
+// are *displayed* client-side. Use --per-page to control the server page size.
+func addPaginationFlags(cmd *cobra.Command) {
+	cmd.Flags().Bool("all", false, "Fetch all pages (follows the server's next-page links)")
+	cmd.Flags().Int("page", 0, "Fetch a specific page (1-based)")
+	cmd.Flags().Int("per-page", 0, "Server page size (maps to the API ?limit=; server caps at 100)")
 }
 
 func applyCommonListParams(cmd *cobra.Command, values url.Values) {
@@ -157,6 +175,29 @@ func applyCommonListParams(cmd *cobra.Command, values url.Values) {
 	if q, _ := cmd.Flags().GetString("query"); strings.TrimSpace(q) != "" {
 		values.Set("q", strings.TrimSpace(q))
 	}
+	applyPaginationParams(cmd, values)
+}
+
+// applyPaginationParams writes ?page= / ?limit= from the pagination flags.
+// --all does not add a param here (the client walks pages itself); --page and
+// --per-page are ignored when --all is set, since the whole collection is
+// fetched regardless.
+func applyPaginationParams(cmd *cobra.Command, values url.Values) {
+	if all, _ := cmd.Flags().GetBool("all"); all {
+		return
+	}
+	if page, _ := cmd.Flags().GetInt("page"); page > 0 {
+		values.Set("page", strconv.Itoa(page))
+	}
+	if perPage, _ := cmd.Flags().GetInt("per-page"); perPage > 0 {
+		values.Set("limit", strconv.Itoa(perPage))
+	}
+}
+
+// fetchAll reports whether --all was passed on this command.
+func fetchAll(cmd *cobra.Command) bool {
+	all, _ := cmd.Flags().GetBool("all")
+	return all
 }
 
 func changed(cmd *cobra.Command, name string) bool {

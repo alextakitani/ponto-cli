@@ -42,7 +42,28 @@ type APIResponse struct {
 	Location   string
 	LinkNext   string
 	Data       any
+	// Pagination holds the X-* pagination metadata the Ponto API returns on
+	// collection endpoints. Zero-valued when the endpoint is not paginated.
+	Pagination Pagination
 }
+
+// Pagination mirrors the X-* headers Ponto returns on paginated collections.
+// See docs/api.md §2 (Paginação) in the server repo: the body stays a bare
+// array; the metadata lives in headers.
+type Pagination struct {
+	TotalCount int // X-Total-Count
+	TotalPages int // X-Total-Pages
+	Page       int // X-Page
+	PerPage    int // X-Per-Page
+	NextPage   int // X-Next-Page (0 when absent — last page)
+	PrevPage   int // X-Prev-Page (0 when absent — first page)
+}
+
+// HasNext reports whether the server advertised a following page.
+func (p Pagination) HasNext() bool { return p.NextPage > 0 }
+
+// Present reports whether the response carried pagination headers at all.
+func (p Pagination) Present() bool { return p.TotalCount > 0 || p.TotalPages > 0 || p.Page > 0 }
 
 // New creates a new API client.
 func New(baseURL, token string) *Client {
@@ -208,6 +229,7 @@ func (c *Client) request(method, path string, body any) (*APIResponse, error) {
 		Body:       respBody,
 		Location:   resp.Header.Get("Location"),
 		LinkNext:   parseLinkNext(resp.Header.Get("Link")),
+		Pagination: parsePagination(resp.Header),
 	}
 
 	// Check for error status codes before parsing JSON,
@@ -357,6 +379,26 @@ func (c *Client) errorFromResponse(status int, body []byte, header http.Header) 
 	return errors.FromHTTPStatus(status, message)
 }
 
+// parsePagination reads Ponto's X-* pagination headers. Missing or
+// unparseable headers become 0, so a non-paginated response yields a
+// zero-valued Pagination (Present() == false).
+func parsePagination(h http.Header) Pagination {
+	atoi := func(key string) int {
+		if n, err := strconv.Atoi(h.Get(key)); err == nil && n > 0 {
+			return n
+		}
+		return 0
+	}
+	return Pagination{
+		TotalCount: atoi("X-Total-Count"),
+		TotalPages: atoi("X-Total-Pages"),
+		Page:       atoi("X-Page"),
+		PerPage:    atoi("X-Per-Page"),
+		NextPage:   atoi("X-Next-Page"),
+		PrevPage:   atoi("X-Prev-Page"),
+	}
+}
+
 // parseLinkNext extracts the "next" URL from a Link header.
 func parseLinkNext(linkHeader string) string {
 	if linkHeader == "" {
@@ -369,41 +411,67 @@ func parseLinkNext(linkHeader string) string {
 	return ""
 }
 
-// GetWithPagination fetches all pages of a paginated endpoint.
+// GetWithPagination fetches a paginated Ponto collection. When fetchAll is
+// false it returns the single page as-is (Pagination reflects that page). When
+// fetchAll is true it walks X-Next-Page — rewriting the request's ?page= param
+// each hop — and returns every row concatenated into one array. The returned
+// Pagination is flattened to describe the aggregate: one page holding the full
+// TotalCount, HasNext() false.
 func (c *Client) GetWithPagination(path string, fetchAll bool) (*APIResponse, error) {
 	resp, err := c.Get(path)
 	if err != nil {
 		return resp, err
 	}
 
-	if !fetchAll || resp.LinkNext == "" {
+	if !fetchAll || !resp.Pagination.HasNext() {
 		return resp, nil
 	}
 
-	// Collect all data
-	var allData []any
-	if arr, ok := resp.Data.([]any); ok {
-		allData = append(allData, arr...)
-	}
+	allData := collectRows(nil, resp.Data)
 
-	// Fetch remaining pages
-	nextURL := resp.LinkNext
-	for nextURL != "" {
-		pageResp, err := c.Get(nextURL)
+	next := resp.Pagination.NextPage
+	for next > 0 {
+		pageResp, err := c.Get(withPage(path, next))
 		if err != nil {
 			return nil, err
 		}
-
-		if arr, ok := pageResp.Data.([]any); ok {
-			allData = append(allData, arr...)
-		}
-
-		nextURL = pageResp.LinkNext
+		allData = collectRows(allData, pageResp.Data)
+		next = pageResp.Pagination.NextPage
 	}
 
+	total := len(allData)
 	resp.Data = allData
 	resp.LinkNext = ""
+	resp.Pagination = Pagination{
+		TotalCount: total,
+		TotalPages: 1,
+		Page:       1,
+		PerPage:    total,
+	}
 	return resp, nil
+}
+
+// collectRows appends the array rows of data to acc, if data is an array.
+func collectRows(acc []any, data any) []any {
+	if arr, ok := data.([]any); ok {
+		return append(acc, arr...)
+	}
+	return acc
+}
+
+// withPage returns path with its page query param set to n, preserving all
+// other params (limit, since, until, q, archived, …).
+func withPage(path string, n int) string {
+	base := path
+	q := url.Values{}
+	if i := strings.IndexByte(path, '?'); i >= 0 {
+		base = path[:i]
+		if parsed, err := url.ParseQuery(path[i+1:]); err == nil {
+			q = parsed
+		}
+	}
+	q.Set("page", strconv.Itoa(n))
+	return base + "?" + q.Encode()
 }
 
 // FollowLocation fetches the resource at the Location header.

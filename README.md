@@ -105,6 +105,37 @@ For the full command surface, run `ponto commands --json` or read
 - Timestamps you type without an offset are sent with your machine's local
   offset, so "2026-07-06 09:00" means what you think it means.
 
+### Listing: pagination & date filters
+
+Every list command (`entry`, `client`, `project`, `tag`, `task`) is
+**server-paginated** — by default you get the first page, not the whole
+collection.
+
+```bash
+ponto entry list --all              # fetch every page, merged into one list
+ponto entry list --page 2           # one specific page (1-based)
+ponto entry list --per-page 100     # server page size (API ?limit=; caps at 100)
+```
+
+When a response isn't the last page, the JSON envelope carries a
+`context.pagination` object (`total`, `pages`, `page`, `per_page`, `has_next`,
+`next`, `prev`) so scripts can page programmatically — but reach for `--all`
+unless you specifically need one page. Note `--per-page` (server page size) is
+distinct from the global `--limit` (client-side display truncation), and
+`--limit` can't be combined with `--all`.
+
+`entry list` also filters by date window, on `started_at`:
+
+```bash
+ponto entry list \
+  --since "2026-07-01T00:00:00-03:00" \
+  --until "2026-08-01T00:00:00-03:00"   # July 2026 (upper bound excluded)
+```
+
+`--since` is inclusive, `--until` is **exclusive** (pass the start of the next
+period to exclude it). Both need a full ISO 8601 timestamp with an offset or
+`Z`; a bare date is rejected by the server with a `400` on purpose.
+
 ### Output Formats
 
 ```bash

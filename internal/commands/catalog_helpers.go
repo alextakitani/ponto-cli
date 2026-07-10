@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"fmt"
 	"net/url"
 
 	"github.com/alextakitani/ponto-cli/internal/render"
@@ -18,17 +17,20 @@ func newCatalogCmd(resource, plural, bodyKey string, cols render.Columns, flags 
 		Use:   "list",
 		Short: "List " + plural,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if err := checkLimitAll(fetchAll(cmd)); err != nil {
+				return err
+			}
 			c, err := domainClient()
 			if err != nil {
 				return err
 			}
 			values := url.Values{}
 			applyCommonListParams(cmd, values)
-			resp, err := c.Get(queryPath("/"+plural, values))
+			resp, err := c.GetWithPagination(queryPath("/"+plural, values), fetchAll(cmd))
 			if err != nil {
 				return err
 			}
-			printList(enrichPresentation(resp.Data), cols, fmt.Sprintf("%d %s", dataCount(resp.Data), plural), nil)
+			printCollection(resp, enrichPresentation(resp.Data), cols, plural, fetchAll(cmd), nil)
 			return nil
 		},
 	}

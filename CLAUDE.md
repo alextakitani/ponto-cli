@@ -8,7 +8,9 @@ o CLI é MIT de propósito — Q74/Q78).
 ## Documentação (ler antes de mexer)
 
 - `docs/spec.md` — spec canônica (destilada do grilling Q73–Q76 do app).
-- `docs/api.md` — referência da superfície JSON do app Ponto que o CLI consome.
+- Referência da API JSON do app Ponto que o CLI consome: **fonte canônica em
+  `~/Projetos/ponto/docs/api.md`** (repo do servidor). Não há cópia local — ler
+  de lá.
 - `docs/fork-plan.md` — mapa do fizzy-cli e o que foi herdado/trocado no fork.
 
 ## Convenções
@@ -30,5 +32,5 @@ o CLI é MIT de propósito — Q74/Q78).
 - Fable no main orquestra; implementação → Codex; trivial → direto.
 - Gates: `go build ./...`, `go vet ./...`, `go test ./...` verdes antes de
   qualquer commit.
-- Instância de referência: `https://ponto.example.com` (prod) e
+- Instância de referência: uma instância self-hosted qualquer (prod) e
   `localhost:3000` (dev).

@@ -1,7 +1,7 @@
 package commands
 
 import (
-	"fmt"
+	"net/url"
 	"strconv"
 
 	"github.com/spf13/cobra"
@@ -19,16 +19,22 @@ var taskListCmd = &cobra.Command{
 		if err := requireFlags(cmd, "project"); err != nil {
 			return err
 		}
+		if err := checkLimitAll(fetchAll(cmd)); err != nil {
+			return err
+		}
 		projectID, _ := cmd.Flags().GetInt("project")
 		c, err := domainClient()
 		if err != nil {
 			return err
 		}
-		resp, err := c.Get("/projects/" + strconv.Itoa(projectID) + "/tasks")
+		values := url.Values{}
+		applyPaginationParams(cmd, values)
+		path := queryPath("/projects/"+strconv.Itoa(projectID)+"/tasks", values)
+		resp, err := c.GetWithPagination(path, fetchAll(cmd))
 		if err != nil {
 			return err
 		}
-		printList(resp.Data, taskColumns, fmt.Sprintf("%d tasks", dataCount(resp.Data)), nil)
+		printCollection(resp, resp.Data, taskColumns, "tasks", fetchAll(cmd), nil)
 		return nil
 	},
 }
@@ -114,6 +120,7 @@ var taskDeleteCmd = &cobra.Command{
 
 func init() {
 	taskListCmd.Flags().Int("project", 0, "Project ID")
+	addPaginationFlags(taskListCmd)
 	taskCreateCmd.Flags().Int("project", 0, "Project ID")
 	taskCreateCmd.Flags().String("name", "", "Task name")
 	taskUpdateCmd.Flags().String("name", "", "Task name")

@@ -681,6 +681,69 @@ func printListPaginated(data any, cols render.Columns, hasNext bool, nextURL str
 	}
 }
 
+// printCollection renders a paginated collection response, surfacing the
+// server's X-* pagination metadata (see internal/client.Pagination) into the
+// JSON envelope's context.pagination and into the human summary. `data` is the
+// display-ready payload (post-enrichment); `resp` carries the raw pagination
+// headers. `plural` is the noun used in the summary ("clients", "entries").
+//
+// With --all, resp.Pagination has been flattened by the client to a single
+// aggregate page, so has_next is false and the summary reports the true total.
+func printCollection(resp *client.APIResponse, data any, cols render.Columns, plural string, all bool, breadcrumbs []Breadcrumb) {
+	p := resp.Pagination
+	shown := dataCount(data)
+
+	summary := fmt.Sprintf("%d %s", shown, plural)
+	if p.Present() && p.TotalCount > 0 && p.TotalCount != shown {
+		summary = fmt.Sprintf("%d of %d %s", shown, p.TotalCount, plural)
+	}
+
+	data, _ = truncateData(data)
+
+	switch out.EffectiveFormat() {
+	case output.FormatStyled:
+		notice := paginationNotice(p, all)
+		body := render.StyledList(toMaps(data), cols, summary)
+		writeOutputString(appendHumanSections(body, notice, "", breadcrumbs, false))
+		captureResponse()
+	case output.FormatMarkdown:
+		notice := paginationNotice(p, all)
+		body := render.MarkdownList(toMaps(data), cols, summary)
+		writeOutputString(appendHumanSections(body, notice, "", breadcrumbs, true))
+		captureResponse()
+	default:
+		opts := []output.ResponseOption{
+			output.WithBreadcrumbs(breadcrumbs...),
+			output.WithSummary(summary),
+		}
+		if p.Present() {
+			opts = append(opts, output.WithContext("pagination", map[string]any{
+				"total":    p.TotalCount,
+				"pages":    p.TotalPages,
+				"page":     p.Page,
+				"per_page": p.PerPage,
+				"has_next": p.HasNext(),
+				"next":     p.NextPage,
+				"prev":     p.PrevPage,
+			}))
+		}
+		if notice := paginationNotice(p, all); notice != "" {
+			opts = append(opts, output.WithNotice(notice))
+		}
+		recordOutputError(out.OK(data, opts...))
+		captureResponse()
+	}
+}
+
+// paginationNotice builds a human hint when more pages exist. Empty when the
+// caller already has everything (--all, or a single unpaginated page).
+func paginationNotice(p client.Pagination, all bool) string {
+	if all || !p.HasNext() {
+		return ""
+	}
+	return fmt.Sprintf("Page %d of %d — pass --all to fetch every page, or --page %d for the next", p.Page, p.TotalPages, p.NextPage)
+}
+
 // printDetail renders a single object with format-aware dispatch.
 func printDetail(data any, summary string, breadcrumbs []Breadcrumb) {
 	printDetailPaginated(data, summary, breadcrumbs, false, "")

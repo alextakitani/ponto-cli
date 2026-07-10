@@ -106,6 +106,37 @@ Pra ver todos os comandos, rode `ponto commands --json` ou leia
 - Horários que você digita sem offset são enviados com o offset local da sua
   máquina, então "2026-07-06 09:00" significa o que você espera.
 
+### Listagem: paginação e filtros de data
+
+Todo comando de listagem (`entry`, `client`, `project`, `tag`, `task`) é
+**paginado no servidor** — por padrão você recebe a primeira página, não a
+coleção inteira.
+
+```bash
+ponto entry list --all              # busca todas as páginas, mescladas numa lista
+ponto entry list --page 2           # uma página específica (base 1)
+ponto entry list --per-page 100     # tamanho de página do servidor (API ?limit=; teto 100)
+```
+
+Quando a resposta não é a última página, o envelope JSON traz um objeto
+`context.pagination` (`total`, `pages`, `page`, `per_page`, `has_next`,
+`next`, `prev`) pra paginar via script — mas use `--all` a menos que precise de
+uma página só. Note que `--per-page` (tamanho da página no servidor) é diferente
+do `--limit` global (trunca a exibição no lado cliente), e `--limit` não pode
+ser combinado com `--all`.
+
+`entry list` também filtra por janela de data, sobre `started_at`:
+
+```bash
+ponto entry list \
+  --since "2026-07-01T00:00:00-03:00" \
+  --until "2026-08-01T00:00:00-03:00"   # julho/2026 (limite superior excluído)
+```
+
+`--since` é inclusivo, `--until` é **exclusivo** (passe o início do próximo
+período pra excluí-lo). Ambos exigem um ISO 8601 completo com offset ou `Z`;
+uma data crua é rejeitada pelo servidor com `400`, de propósito.
+
 ### Formatos de saída
 
 ```bash

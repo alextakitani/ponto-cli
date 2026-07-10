@@ -73,6 +73,9 @@ func init() {
 	if err == nil && list != nil {
 		list.Flags().Int("client", 0, "Filter by client ID")
 		list.RunE = func(cmd *cobra.Command, args []string) error {
+			if err := checkLimitAll(fetchAll(cmd)); err != nil {
+				return err
+			}
 			c, err := domainClient()
 			if err != nil {
 				return err
@@ -83,11 +86,11 @@ func init() {
 				v, _ := cmd.Flags().GetInt("client")
 				values.Set("client_id", strconv.Itoa(v))
 			}
-			resp, err := c.Get(queryPath("/projects", values))
+			resp, err := c.GetWithPagination(queryPath("/projects", values), fetchAll(cmd))
 			if err != nil {
 				return err
 			}
-			printList(enrichPresentation(resp.Data), projectColumns, fmt.Sprintf("%d projects", dataCount(resp.Data)), nil)
+			printCollection(resp, enrichPresentation(resp.Data), projectColumns, "projects", fetchAll(cmd), nil)
 			return nil
 		}
 	}

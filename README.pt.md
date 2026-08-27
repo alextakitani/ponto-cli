@@ -220,6 +220,32 @@ case $? in
 esac
 ```
 
+### Credencial salva vs. verificada
+
+Salvar um token e ter um token que funciona são coisas diferentes, e o CLI as
+mantém separadas:
+
+```bash
+ponto auth login TOKEN     # salva e então pergunta ao servidor se funciona
+ponto auth status          # reconfere contra o servidor
+```
+
+`token_configured` é um fato local — existe um token guardado. `authenticated`
+é uma afirmação sobre o servidor, e só é verdadeira depois que o servidor
+atendeu uma requisição autenticada. Um token salvo mas recusado reporta
+`authenticated: false` com `verification: "rejected"`, em vez de parecer certo
+aqui e falhar no primeiro comando de verdade.
+
+`auth login` sai com `3` quando o servidor recusa o token — o token continua
+salvo, então repetir com o valor certo já resolve. Quando a instância está
+inacessível, o token é salvo e reportado como `verification: "unreachable"`:
+servidor fora do ar não é prova de que a credencial é ruim.
+
+Use `--no-verify` em qualquer um dos dois pra pular a ida à rede e reportar só
+o que está guardado — útil ao configurar contra uma instância que você ainda
+não alcança. Nenhum dos dois jamais afirma `authenticated: true` sem ter
+perguntado.
+
 ## Integração com agentes de IA
 
 `ponto` funciona com qualquer agente de IA que roda comandos de shell — "inicie um

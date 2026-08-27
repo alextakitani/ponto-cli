@@ -219,6 +219,31 @@ case $? in
 esac
 ```
 
+### Saved vs. verified credentials
+
+Saving a token and having a working one are different things, and the CLI keeps
+them apart:
+
+```bash
+ponto auth login TOKEN     # saves, then asks the server whether it works
+ponto auth status          # re-checks against the server
+```
+
+`token_configured` is a local fact — a token is stored. `authenticated` is a
+claim about the server, and is true only after the server has served an
+authenticated request. A stored-but-rejected token therefore reports
+`authenticated: false` with `verification: "rejected"`, instead of looking fine
+here and failing at the first real command.
+
+`auth login` exits `3` when the server rejects the token — the token is still
+saved, so a retry with the right value just works. When the instance cannot be
+reached, the token is saved and reported as `verification: "unreachable"`: an
+unreachable server is not evidence that a credential is bad.
+
+Use `--no-verify` on either command to skip the round trip and report only what
+is stored — useful when setting up against an instance you cannot reach yet.
+Neither command ever claims `authenticated: true` without having asked.
+
 ## AI Agent Integration
 
 `ponto` works with any AI agent that can run shell commands — "start a timer

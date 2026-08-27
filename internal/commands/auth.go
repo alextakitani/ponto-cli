@@ -62,8 +62,14 @@ var authLoginCmd = &cobra.Command{
 			breadcrumb("commands", "ponto commands", "List commands"),
 		}
 
+		// Saving is not authenticating. The token is stored by now, so report
+		// that plainly, then ask the server whether it actually works — a
+		// rejected token discovered here costs one command, while the same
+		// token reported as fine surfaces later, from whichever tool tried to
+		// use it, with nothing pointing back at login.
 		result := map[string]any{
-			"authenticated": true,
+			"authenticated": false,
+			"saved":         true,
 			"profile":       profileName,
 			"message":       "Token saved",
 		}
@@ -73,6 +79,42 @@ var authLoginCmd = &cobra.Command{
 			} else {
 				result["storage"] = "file"
 			}
+		}
+
+		if skipVerify {
+			result["verification"] = "skipped"
+			result["message"] = "Token saved (not verified)"
+			printMutation(result, "", breadcrumbs)
+			return nil
+		}
+
+		check := VerifyToken(cmd.Context(), cfg.APIURL, token)
+		switch check.Verdict {
+		case TokenAccepted:
+			result["authenticated"] = true
+			result["verification"] = "accepted"
+			result["message"] = "Token saved and verified"
+		case TokenRejected:
+			// The token is stored, so a retry with the right value just works;
+			// but this must not exit 0, or a script — and the user — would read
+			// it as success.
+			return &output.Error{
+				Code:       output.CodeAuth,
+				Message:    fmt.Sprintf("Token saved, but the server rejected it (%d)", check.HTTPStatus),
+				Hint:       "Check the token and run 'ponto auth login <token>' again, or use --no-verify to keep it anyway",
+				HTTPStatus: check.HTTPStatus,
+			}
+		case TokenUncertain:
+			// Stored, unverified, and honest about which. Not an error: the
+			// token may well be fine and the instance merely unreachable.
+			result["verification"] = "unreachable"
+			result["message"] = "Token saved, but could not be verified"
+			if check.Err != nil {
+				result["verification_error"] = check.Err.Error()
+			}
+		default:
+			result["verification"] = "no_api_url"
+			result["message"] = "Token saved (no API URL configured to verify against)"
 		}
 
 		printMutation(result, "", breadcrumbs)
@@ -178,24 +220,64 @@ func authLogoutAll() error {
 var authStatusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Show authentication status",
-	Long:  "Shows whether you are currently authenticated.",
+	Long: `Shows whether you are currently authenticated.
+
+Verifies the stored token against the server, so 'authenticated' means the
+server accepted it — not merely that a token is saved. Use --no-verify to
+report only what is stored locally, without a network round trip.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		effectiveCfg := cfg
 		if effectiveCfg == nil {
 			effectiveCfg = config.Load()
 		}
 
+		// `token_configured` is a local fact: a token is stored. `authenticated`
+		// is a claim about the SERVER, so it is only ever true once the server
+		// has served an authenticated request. Reporting a stored-but-rejected
+		// token as authenticated is what let a bad credential look fine here
+		// and fail at the first real command.
+		configured := effectiveCfg.Token != ""
 		status := map[string]any{
-			"authenticated": effectiveCfg.Token != "",
+			"authenticated":    false,
+			"token_configured": configured,
 		}
 
-		if effectiveCfg.Token != "" {
-			status["token_configured"] = true
+		if configured {
 			if effectiveCfg.Profile != "" {
 				status["profile"] = effectiveCfg.Profile
 			}
 			if effectiveCfg.APIURL != "" {
 				status["api_url"] = effectiveCfg.APIURL
+			}
+
+			if skipVerify {
+				status["verified"] = false
+				status["verification"] = "skipped"
+			} else {
+				check := VerifyToken(cmd.Context(), effectiveCfg.APIURL, effectiveCfg.Token)
+				status["authenticated"] = check.Accepted()
+				status["verified"] = check.Verdict != TokenUnverified && check.Verdict != TokenUncertain
+				switch check.Verdict {
+				case TokenAccepted:
+					status["verification"] = "accepted"
+				case TokenRejected:
+					status["verification"] = "rejected"
+					status["verification_status"] = check.HTTPStatus
+					status["hint"] = doctorLoginHint(effectiveCfg.Profile)
+				case TokenUncertain:
+					// Unreachable is not a verdict on the token. Say so, rather
+					// than picking a side the request did not settle.
+					status["verification"] = "unreachable"
+					if check.HTTPStatus != 0 {
+						status["verification_status"] = check.HTTPStatus
+					}
+					if check.Err != nil {
+						status["verification_error"] = check.Err.Error()
+					}
+					status["hint"] = "Could not reach " + effectiveCfg.APIURL + " to verify the token"
+				default:
+					status["verification"] = "no_api_url"
+				}
 			}
 		}
 
@@ -357,4 +439,15 @@ func init() {
 	authCmd.AddCommand(authSwitchCmd)
 
 	authLogoutCmd.Flags().Bool("all", false, "Log out of all profiles")
+
+	authStatusCmd.Flags().BoolVar(&skipVerify, "no-verify", false,
+		"Report only what is stored locally, without asking the server")
+	authLoginCmd.Flags().BoolVar(&skipVerify, "no-verify", false,
+		"Save the token without checking it against the server")
 }
+
+// skipVerify turns off the server round trip for `auth status` and `auth login`.
+// It exists for the offline case — saving a token for an instance you cannot
+// reach yet — and is never the default, because silence about a credential is
+// what made a rejected token look fine.
+var skipVerify bool

@@ -244,6 +244,22 @@ Use `--no-verify` on either command to skip the round trip and report only what
 is stored — useful when setting up against an instance you cannot reach yet.
 Neither command ever claims `authenticated: true` without having asked.
 
+### Timezones and which day an entry belongs to
+
+The server files an entry under the day its `started_at` falls on **in the
+user's timezone**, entirely — an entry that crosses midnight is never split.
+JSON timestamps are rendered in the *application's* zone, which is not
+necessarily the user's, so a client must not infer the calendar from a
+timestamp's own offset, nor from the machine's clock:
+
+```bash
+ponto preferences --jq '.data.time_zone'    # e.g. "America/Sao_Paulo"
+```
+
+Group by `started_at` converted to that zone and a client's ledger matches the
+app's. Use it for the `--since` window too, or a week boundary lands on the
+wrong instant for anyone away from the server's zone.
+
 ## AI Agent Integration
 
 `ponto` works with any AI agent that can run shell commands — "start a timer

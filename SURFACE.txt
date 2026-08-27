@@ -28,6 +28,7 @@ CMD ponto entry show
 CMD ponto entry split
 CMD ponto entry update
 CMD ponto export
+CMD ponto preferences
 CMD ponto project
 CMD ponto project archive
 CMD ponto project create

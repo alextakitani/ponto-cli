@@ -246,6 +246,22 @@ o que está guardado — útil ao configurar contra uma instância que você ain
 não alcança. Nenhum dos dois jamais afirma `authenticated: true` sem ter
 perguntado.
 
+### Fusos e a qual dia um entry pertence
+
+O servidor arquiva um entry no dia em que o `started_at` cai **no fuso do
+usuário**, por inteiro — um entry que cruza a meia-noite nunca é fatiado. Os
+timestamps do JSON são renderizados no fuso da *aplicação*, que não é
+necessariamente o do usuário, então um cliente não deve inferir o calendário
+pelo offset do próprio timestamp nem pelo relógio da máquina:
+
+```bash
+ponto preferences --jq '.data.time_zone'    # ex.: "America/Sao_Paulo"
+```
+
+Agrupe pelo `started_at` convertido pra esse fuso e o ledger do cliente bate com
+o do app. Use-o também na janela do `--since`, ou a fronteira da semana cai no
+instante errado pra quem estiver fora do fuso do servidor.
+
 ## Integração com agentes de IA
 
 `ponto` funciona com qualquer agente de IA que roda comandos de shell — "inicie um

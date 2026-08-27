@@ -169,6 +169,57 @@ e agentes. A saída de lista/detalhe também carrega campos de apresentação
 derivados (`duration` como `H:MM:SS`, `rate` como `"150.00 BRL"`) ao lado dos
 valores crus da API (`duration_seconds`, `rate_cents`, `currency`).
 
+Uma falha responde com o mesmo formato de envelope, `ok` falso, e um `code`
+legível por máquina:
+
+```json
+{
+  "ok": false,
+  "error": "No API token configured",
+  "code": "auth_required",
+  "hint": "Run 'ponto auth login TOKEN' or set PONTO_TOKEN"
+}
+```
+
+Ramifique pelo `code`, nunca pela frase em `error` — o texto é escrito pra
+pessoas e pode ser reescrito; o code é o contrato.
+
+### Códigos de saída
+
+Todo `code` tem um status de saída correspondente, então um script pode
+ramificar sem parsear nada:
+
+| Saída | `code`          | Significado                                   |
+|------:|-----------------|-----------------------------------------------|
+|   `0` | —               | Sucesso                                       |
+|   `1` | `usage`         | Argumentos ou flags inválidos                 |
+|   `2` | `not_found`     | O recurso não existe                          |
+|   `3` | `auth_required` | Não autenticado (token ausente/inválido)      |
+|   `4` | `forbidden`     | Autenticado, mas o token não tem permissão    |
+|   `5` | `rate_limit`    | Rate limit (HTTP 429)                         |
+|   `6` | `network`       | Falha de conexão, DNS ou timeout              |
+|   `7` | `api_error`     | O servidor devolveu erro                      |
+|   `8` | `ambiguous`     | Um nome casou com mais de um registro         |
+
+Duas propriedades com as quais integradores podem contar:
+
+- **Um comando que falha ainda imprime um envelope JSON completo no stdout.**
+  Só binário ausente (`127`, vindo do shell) ou um crash não produzem JSON.
+  Então, ao parsear a saída, deixe o envelope decidir e consulte o status de
+  saída apenas quando o parse falhar.
+- **Um `code` desconhecido sai com `7`, nunca `0`.** Codes adicionados no
+  futuro degradam pra "o servidor devolveu erro" em vez de passar em silêncio.
+
+```bash
+ponto --json timer status
+case $? in
+  0) ;;                                    # rodando ou parado — leia .data
+  3) echo "rode: ponto auth login TOKEN" ;;
+  6) echo "instância inacessível" ;;
+  *) echo "falhou — veja .error na saída" ;;
+esac
+```
+
 ## Integração com agentes de IA
 
 `ponto` funciona com qualquer agente de IA que roda comandos de shell — "inicie um
@@ -245,8 +296,8 @@ ponto setup claude
 ponto skill install
 ```
 
-Os erros mapeiam pra códigos de saída semânticos (não encontrado, auth, proibido,
-rate-limit, rede, API) e incluem um `hint` com o comando que normalmente resolve.
+Os erros mapeiam pra [códigos de saída](#códigos-de-saída) semânticos e incluem
+um `hint` com o comando que normalmente resolve.
 
 ## Desenvolvimento
 

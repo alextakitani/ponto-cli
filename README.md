@@ -168,6 +168,57 @@ navigate. List/detail output also carries derived presentation fields
 (`duration` as `H:MM:SS`, `rate` as `"150.00 BRL"`) alongside the raw API
 values (`duration_seconds`, `rate_cents`, `currency`).
 
+A failure answers with the same envelope shape, `ok` false, and a machine-
+readable `code`:
+
+```json
+{
+  "ok": false,
+  "error": "No API token configured",
+  "code": "auth_required",
+  "hint": "Run 'ponto auth login TOKEN' or set PONTO_TOKEN"
+}
+```
+
+Branch on `code`, never on the `error` sentence — the wording is written for
+people and can be reworded; the code is the contract.
+
+### Exit codes
+
+Every `code` has a matching exit status, so a shell script can branch without
+parsing anything:
+
+| Exit | `code`          | Meaning                                  |
+|-----:|-----------------|------------------------------------------|
+|  `0` | —               | Success                                  |
+|  `1` | `usage`         | Invalid arguments or flags               |
+|  `2` | `not_found`     | Resource does not exist                  |
+|  `3` | `auth_required` | Not authenticated (missing/invalid token)|
+|  `4` | `forbidden`     | Authenticated, but the token lacks scope |
+|  `5` | `rate_limit`    | Rate limited (HTTP 429)                  |
+|  `6` | `network`       | Connection, DNS or timeout failure       |
+|  `7` | `api_error`     | The server returned an error             |
+|  `8` | `ambiguous`     | A name matched more than one record      |
+
+Two properties integrators can rely on:
+
+- **A failed command still prints a complete JSON envelope on stdout.** Only a
+  missing binary (`127`, from the shell) or a crash produces no JSON. So when
+  you parse the output, let the envelope decide and consult the exit status
+  only when parsing fails.
+- **An unrecognised `code` exits `7`, never `0`.** New codes added later
+  degrade to "server returned an error" rather than passing silently.
+
+```bash
+ponto --json timer status
+case $? in
+  0) ;;                                    # running or idle — read .data
+  3) echo "run: ponto auth login TOKEN" ;;
+  6) echo "instance unreachable" ;;
+  *) echo "failed — see .error in the output" ;;
+esac
+```
+
 ## AI Agent Integration
 
 `ponto` works with any AI agent that can run shell commands — "start a timer
@@ -245,8 +296,8 @@ ponto setup claude
 ponto skill install
 ```
 
-Errors map to semantic exit codes (not found, auth, forbidden, rate-limit,
-network, API) and include a `hint` with the command that usually fixes it.
+Errors map to semantic [exit codes](#exit-codes) and include a `hint` with the
+command that usually fixes it.
 
 ## Development
 
